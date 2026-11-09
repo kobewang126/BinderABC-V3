@@ -1,0 +1,13 @@
+{
+  "name": "binderabc-reader",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node build.mjs" },
+  "dependencies": {
+    "esbuild": "^0.25.0",
+    "lucide": "^0.468.0",
+    "marked": "^15.0.0",
+    "mermaid": "^11.4.1"
+  },
+  "devDependencies": { "playwright": "^1.50.0" }
+}

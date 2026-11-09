@@ -7,3 +7,5 @@
 Module.symvers
 modules.order
 .DS_Store
+site/node_modules
+site/dist/

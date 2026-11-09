@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BinderABC 阅读器</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="terminal.css">
+  <link rel="stylesheet" href="flow.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">B<span>.</span></span><div><strong>BinderABC</strong><small>从零设计 Binder</small></div></div>
+    <div class="top-context"><span class="top-label">学习笔记</span><span class="top-divider"></span><span id="top-chapter"></span></div>
+    <div class="top-actions"><span class="offline"><i></i>离线阅读</span><button class="icon-button mobile-menu" id="mobile-chapters" title="章节目录" aria-label="章节目录"></button><button class="icon-button mobile-menu" id="mobile-source" title="源码目录" aria-label="源码目录"></button></div>
+  </header>
+  <main class="workspace">
+    <aside class="navigation" id="navigation">
+      <div class="panel-heading"><div><span class="eyebrow">CONTENTS</span><h2>章节目录</h2></div><span class="count" id="chapter-count"></span></div>
+      <div class="nav-scroll"><nav id="chapter-list" aria-label="章节"></nav><div class="section-outline"><div class="outline-title">本章内容</div><nav id="section-list" aria-label="本章内容"></nav></div></div>
+      <div class="nav-footer"><span class="footer-dot"></span> 持续更新中 <span>·</span> BinderABC</div>
+    </aside>
+    <section class="reader" id="reader">
+      <div class="reader-inner"><div class="breadcrumb"><span>教程</span><span>/</span><span id="breadcrumb-title"></span></div><article id="article" class="prose"></article><div class="chapter-pagination" id="pagination"></div></div>
+    </section>
+    <aside class="source-panel" id="source-panel">
+      <div class="source-header"><div><span class="eyebrow">SOURCE EXPLORER</span><h2>源码浏览</h2></div><div class="source-actions"><button class="icon-button" id="toggle-tree" title="显示或隐藏源码目录" aria-label="显示或隐藏源码目录"></button></div></div>
+      <div class="source-tabs"><button class="active" id="source-tab">源码文件</button><span id="source-count"></span></div>
+      <div class="source-body"><div class="tree" id="tree"><div class="tree-heading">EXAMPLES <span>章节源码</span></div><div id="file-tree"></div></div><div class="code-area"><div class="file-header"><div class="file-icon" id="file-icon"></div><div class="file-name"><strong id="file-name">选择源码文件</strong><span id="file-path">examples/</span></div><button class="icon-button" id="copy-code" title="复制源码" aria-label="复制源码"></button></div><section class="source-explanation" id="source-explanation" hidden><div class="source-explanation-label" id="source-explanation-label"></div><p id="source-explanation-text"></p></section><div class="code-scroll" id="code-scroll"><div class="empty-state"><div class="empty-icon" id="empty-icon"></div><strong>选择源码文件</strong><p>从目录选择文件，或点击正文中的源码引用。</p></div></div><div class="code-footer"><span id="code-footer">SOURCE VIEW</span><span id="line-info"></span></div></div></div>
+      <div class="terminal-resize" id="terminal-resize" role="separator" aria-label="调整终端高度" aria-orientation="horizontal" tabindex="0"><span></span></div>
+      <section class="terminal" id="terminal" aria-label="模拟终端">
+        <div class="terminal-header"><div class="terminal-title"><span id="terminal-icon"></span><strong>实验终端</strong><span class="simulation-tag">模拟</span></div><div class="terminal-tools"><button class="icon-button terminal-icon-button" id="terminal-chapter" title="进入当前章节目录" aria-label="进入当前章节目录"></button><button class="icon-button terminal-icon-button" id="terminal-clear" title="清空终端" aria-label="清空终端"></button><button class="icon-button terminal-icon-button" id="terminal-collapse" title="折叠终端" aria-label="折叠终端"></button></div></div>
+        <div class="terminal-content" id="terminal-content"><div class="terminal-tabs" role="tablist"><button class="terminal-tab active" data-session="0" role="tab" aria-selected="true">终端 1 <span></span></button><button class="terminal-tab" data-session="1" role="tab" aria-selected="false">终端 2 <span></span></button><div class="terminal-status">离线模拟 · 未执行真实命令</div></div><div class="terminal-output" id="terminal-output" aria-live="polite"></div><form class="terminal-input-row" id="terminal-form"><label class="terminal-prompt" for="terminal-input" id="terminal-prompt"></label><input id="terminal-input" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="模拟终端命令" placeholder="输入 help 查看命令"></form></div>
+      </section>
+    </aside>
+  </main>
+  <div class="scrim" id="scrim"></div>
+  <script src="data.js"></script><script src="app.bundle.js"></script>
+</body>
+</html>
