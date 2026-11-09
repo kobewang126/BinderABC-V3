@@ -37,6 +37,7 @@
 ### 3 第三篇：服务对象与引用
 
 - [第 3.1 章 一个服务端，两个用户态对象](docs/03-objects/3.1-user-objects.md)
+- [第 3.2 章 在驱动中表示服务对象](docs/03-objects/3.2-node.md)
 
 Node、Ref 和 ServiceManager 在后续章节逐步引入。
 
