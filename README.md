@@ -38,6 +38,7 @@
 
 - [第 3.1 章 一个服务端，两个用户态对象](docs/03-objects/3.1-user-objects.md)
 - [第 3.2 章 在驱动中表示服务对象](docs/03-objects/3.2-node.md)
+- [第 3.3 章 在 Parcel 中描述对象](docs/03-objects/3.3-parcel-objects.md)
 
 Node、Ref 和 ServiceManager 在后续章节逐步引入。
 
