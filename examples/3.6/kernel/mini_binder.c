@@ -51,11 +51,12 @@ static __u64 next_id;
 static struct mini_binder_node nodes[8];
 static __u64 next_node_id;
 
-/* Resolve sender-local objects and stage receiver-local references atomically. */
+/* Resolve sender-local handles and stage receiver-local references atomically. */
 static long translate_request(struct file *sender_file,
                               struct mini_binder_file *receiver,
                               struct mini_binder_transaction_data *transaction)
 {
+    struct mini_binder_file *sender = sender_file->private_data;
     __u64 refs[MINI_BINDER_MAX_OBJECTS];
     __u32 previous = 0;
     unsigned int i, j, k;
@@ -63,17 +64,26 @@ static long translate_request(struct file *sender_file,
     if (transaction->object_count > MINI_BINDER_MAX_OBJECTS) return -EINVAL;
     memcpy(refs, receiver->refs, sizeof(refs));
     for (i = 0; i < transaction->object_count; i++) {
-        __u32 offset = transaction->object_offsets[i];
+        __u32 offset = transaction->object_offsets[i], handle, type;
         __u64 id;
         if ((offset & 3) || offset > transaction->size || transaction->size - offset < 12 ||
             (i && (offset < previous || offset - previous < 12))) return -EINVAL;
-        if (get_unaligned_le32(transaction->data + offset) != MINI_BINDER_OBJECT_LOCAL) return -EINVAL;
-        id = get_unaligned_le32(transaction->data + offset + 4);
-        id |= (__u64)get_unaligned_le32(transaction->data + offset + 8) << 32;
-        for (j = 0; j < ARRAY_SIZE(nodes); j++)
-            if (nodes[j].owner == sender_file && nodes[j].cookie == id) break;
+        type = get_unaligned_le32(transaction->data + offset);
+        if (type == MINI_BINDER_OBJECT_HANDLE) {
+            if (get_unaligned_le32(transaction->data + offset + 8)) return -EINVAL;
+            handle = get_unaligned_le32(transaction->data + offset + 4);
+            if (!handle || handle > ARRAY_SIZE(sender->refs) || !sender->refs[handle - 1]) return -ENOENT;
+            id = sender->refs[handle - 1];
+            for (j = 0; j < ARRAY_SIZE(nodes); j++)
+                if (nodes[j].owner && nodes[j].id == id) break;
+        } else if (type == MINI_BINDER_OBJECT_LOCAL) {
+            __u64 cookie = get_unaligned_le32(transaction->data + offset + 4);
+            cookie |= (__u64)get_unaligned_le32(transaction->data + offset + 8) << 32;
+            for (j = 0; j < ARRAY_SIZE(nodes); j++)
+                if (nodes[j].owner == sender_file && nodes[j].cookie == cookie) break;
+            if (j < ARRAY_SIZE(nodes)) id = nodes[j].id;
+        } else return -EINVAL;
         if (j == ARRAY_SIZE(nodes)) return -ENOENT;
-        id = nodes[j].id;
         for (k = 0; k < ARRAY_SIZE(refs); k++) if (refs[k] == id) break;
         if (k == ARRAY_SIZE(refs)) {
             for (k = 0; k < ARRAY_SIZE(refs); k++) if (!refs[k]) break;

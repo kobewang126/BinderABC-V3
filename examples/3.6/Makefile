@@ -8,9 +8,13 @@ all: module userspace
 module:
 	$(MAKE) -C $(KDIR) M=$(CURDIR)/kernel modules
 
-userspace: build/version build/server_mapping_test build/concurrent_test build/command_test build/server_death build/stale_reply build/mmap_access build/parcel_demo build/parcel_test build/mapped_test build/object_server build/object_client build/object_test build/node_test build/object_parcel_test build/ref_test build/multi_server_test build/local_transfer_test
+userspace: build/version build/server_mapping_test build/concurrent_test build/command_test build/server_death build/stale_reply build/mmap_access build/parcel_demo build/parcel_test build/mapped_test build/object_server build/object_client build/object_test build/node_test build/object_parcel_test build/ref_test build/multi_server_test build/transfer_test build/local_transfer_test
 
 build/local_transfer_test: tests/local_transfer_test.c include/mini_binder.h
+	mkdir -p build
+	$(CC) $(CFLAGS) -Iinclude $< -o $@
+
+build/transfer_test: tests/transfer_test.c include/mini_binder.h
 	mkdir -p build
 	$(CC) $(CFLAGS) -Iinclude $< -o $@
 

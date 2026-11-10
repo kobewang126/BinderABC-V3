@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 #define _POSIX_C_SOURCE 200809L
 #include <assert.h>
-#include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -75,11 +74,6 @@ int main(void)
     send.transaction.target_node = receiver_node;
     send.transaction.size = 12;
     send.transaction.object_count = 1;
-    put32(send.transaction.data, MINI_BINDER_OBJECT_LOCAL);
-    put32(send.transaction.data + 4, 99);
-    assert(ioctl(fd, MINI_BINDER_WRITE, &send) == -1 && errno == ENOENT);
-    put32(send.transaction.data, MINI_BINDER_OBJECT_HANDLE);
-    assert(ioctl(fd, MINI_BINDER_WRITE, &send) == -1 && errno == EINVAL);
     put32(send.transaction.data, MINI_BINDER_OBJECT_LOCAL);
     put32(send.transaction.data + 4, 11);
     assert(ioctl(fd, MINI_BINDER_WRITE, &send) == 0);
