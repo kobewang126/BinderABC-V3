@@ -59,6 +59,7 @@
 
 - [第 5.1 章 同一个 Binder 上下文中的两个调用线程](docs/05-threading/5.1-thread-replies.md)
 - [第 5.2 章 把回复交给发起调用的线程](docs/05-threading/5.2-thread-todo.md)
+- [第 5.3 章 一条同步调用链](docs/05-threading/5.3-nested-call.md)
 
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
