@@ -41,7 +41,7 @@
 - [第 3.3 章 在 Parcel 中描述对象](docs/03-objects/3.3-parcel-objects.md)
 - [第 3.4 章 从 Node 到客户端 Ref](docs/03-objects/3.4-node-to-ref.md)
 
-Node、Ref 和 ServiceManager 在后续章节逐步引入。
+多服务端、对象转交和 ServiceManager 在后续章节逐步引入。
 
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
