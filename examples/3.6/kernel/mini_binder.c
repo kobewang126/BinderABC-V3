@@ -51,8 +51,8 @@ static __u64 next_id;
 static struct mini_binder_node nodes[8];
 static __u64 next_node_id;
 
-/* Resolve sender-local handles and stage receiver-local references atomically. */
-static long translate_request(struct mini_binder_file *sender,
+/* Resolve sender-local objects and stage receiver-local references atomically. */
+static long translate_request(struct file *sender_file,
                               struct mini_binder_file *receiver,
                               struct mini_binder_transaction_data *transaction)
 {
@@ -63,25 +63,26 @@ static long translate_request(struct mini_binder_file *sender,
     if (transaction->object_count > MINI_BINDER_MAX_OBJECTS) return -EINVAL;
     memcpy(refs, receiver->refs, sizeof(refs));
     for (i = 0; i < transaction->object_count; i++) {
-        __u32 offset = transaction->object_offsets[i], handle;
+        __u32 offset = transaction->object_offsets[i];
         __u64 id;
         if ((offset & 3) || offset > transaction->size || transaction->size - offset < 12 ||
             (i && (offset < previous || offset - previous < 12))) return -EINVAL;
-        if (get_unaligned_le32(transaction->data + offset) != MINI_BINDER_OBJECT_HANDLE ||
-            get_unaligned_le32(transaction->data + offset + 8)) return -EINVAL;
-        handle = get_unaligned_le32(transaction->data + offset + 4);
-        if (!handle || handle > ARRAY_SIZE(sender->refs) || !sender->refs[handle - 1]) return -ENOENT;
-        id = sender->refs[handle - 1];
+        if (get_unaligned_le32(transaction->data + offset) != MINI_BINDER_OBJECT_LOCAL) return -EINVAL;
+        id = get_unaligned_le32(transaction->data + offset + 4);
+        id |= (__u64)get_unaligned_le32(transaction->data + offset + 8) << 32;
         for (j = 0; j < ARRAY_SIZE(nodes); j++)
-            if (nodes[j].owner && nodes[j].id == id) break;
+            if (nodes[j].owner == sender_file && nodes[j].cookie == id) break;
         if (j == ARRAY_SIZE(nodes)) return -ENOENT;
+        id = nodes[j].id;
         for (k = 0; k < ARRAY_SIZE(refs); k++) if (refs[k] == id) break;
         if (k == ARRAY_SIZE(refs)) {
             for (k = 0; k < ARRAY_SIZE(refs); k++) if (!refs[k]) break;
             if (k == ARRAY_SIZE(refs)) return -ENOSPC;
             refs[k] = id;
         }
+        put_unaligned_le32(MINI_BINDER_OBJECT_HANDLE, transaction->data + offset);
         put_unaligned_le32(k + 1, transaction->data + offset + 4);
+        put_unaligned_le32(0, transaction->data + offset + 8);
         previous = offset;
     }
     memcpy(receiver->refs, refs, sizeof(refs));
@@ -323,7 +324,7 @@ static long call_server(struct file *file, void __user *arg)
         ret = -EBUSY;
         goto unlock_state;
     }
-    ret = translate_request(client_ctx, server_ctx, &transaction);
+    ret = translate_request(file, server_ctx, &transaction);
     if (ret) goto unlock_state;
     slot->request.id = ++next_id;
     memcpy((char *)server_ctx->buffer + i * MINI_BINDER_MAX_DATA, transaction.data, transaction.size);

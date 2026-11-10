@@ -29,7 +29,6 @@ struct mini_binder_file {
 
 struct transaction_slot {
     struct file *receiver;
-    __u64 reply_refs[MINI_BINDER_MAX_OBJECTS];
     enum rpc_state state;
     struct mini_binder_transaction_data request;
     struct mini_binder_transaction_data reply;
@@ -53,11 +52,11 @@ static struct mini_binder_node nodes[8];
 static __u64 next_node_id;
 
 /* Resolve sender-local handles and stage receiver-local references atomically. */
-static long translate_request(const __u64 *sender_refs,
+static long translate_request(struct file *sender_file,
                               struct mini_binder_file *receiver,
-                              struct mini_binder_transaction_data *transaction,
-                              struct file *sender_file)
+                              struct mini_binder_transaction_data *transaction)
 {
+    struct mini_binder_file *sender = sender_file->private_data;
     __u64 refs[MINI_BINDER_MAX_OBJECTS];
     __u32 previous = 0;
     unsigned int i, j, k;
@@ -73,8 +72,8 @@ static long translate_request(const __u64 *sender_refs,
         if (type == MINI_BINDER_OBJECT_HANDLE) {
             if (get_unaligned_le32(transaction->data + offset + 8)) return -EINVAL;
             handle = get_unaligned_le32(transaction->data + offset + 4);
-            if (!handle || handle > MINI_BINDER_MAX_OBJECTS || !sender_refs[handle - 1]) return -ENOENT;
-            id = sender_refs[handle - 1];
+            if (!handle || handle > ARRAY_SIZE(sender->refs) || !sender->refs[handle - 1]) return -ENOENT;
+            id = sender->refs[handle - 1];
             for (j = 0; j < ARRAY_SIZE(nodes); j++)
                 if (nodes[j].owner && nodes[j].id == id) break;
         } else if (type == MINI_BINDER_OBJECT_LOCAL) {
@@ -97,6 +96,43 @@ static long translate_request(const __u64 *sender_refs,
         previous = offset;
     }
     memcpy(receiver->refs, refs, sizeof(refs));
+    return 0;
+}
+
+/* Called with state_lock held; publish refs only after every object validates. */
+static long translate_reply(struct mini_binder_file *ctx,
+                            struct mini_binder_transaction_data *reply,
+                            struct file *owner)
+{
+    __u64 refs[MINI_BINDER_MAX_OBJECTS];
+    unsigned int i, j, k;
+    __u32 previous = 0;
+
+    if (reply->object_count > MINI_BINDER_MAX_OBJECTS) return -EINVAL;
+    memcpy(refs, ctx->refs, sizeof(refs));
+    for (i = 0; i < reply->object_count; i++) {
+        __u32 offset = reply->object_offsets[i];
+        __u64 cookie;
+        if ((offset & 3) || offset > reply->size || reply->size - offset < 12 ||
+            (i && (offset < previous || offset - previous < 12))) return -EINVAL;
+        if (get_unaligned_le32(reply->data + offset) != MINI_BINDER_OBJECT_LOCAL) return -EINVAL;
+        cookie = get_unaligned_le32(reply->data + offset + 4);
+        cookie |= (__u64)get_unaligned_le32(reply->data + offset + 8) << 32;
+        for (j = 0; j < ARRAY_SIZE(nodes); j++)
+            if (nodes[j].owner == owner && nodes[j].cookie == cookie) break;
+        if (j == ARRAY_SIZE(nodes)) return -ENOENT;
+        for (k = 0; k < ARRAY_SIZE(refs); k++) if (refs[k] == nodes[j].id) break;
+        if (k == ARRAY_SIZE(refs)) {
+            for (k = 0; k < ARRAY_SIZE(refs); k++) if (!refs[k]) break;
+            if (k == ARRAY_SIZE(refs)) return -ENOSPC;
+            refs[k] = nodes[j].id;
+        }
+        put_unaligned_le32(MINI_BINDER_OBJECT_HANDLE, reply->data + offset);
+        put_unaligned_le32(k + 1, reply->data + offset + 4);
+        put_unaligned_le32(0, reply->data + offset + 8);
+        previous = offset;
+    }
+    memcpy(ctx->refs, refs, sizeof(refs));
     return 0;
 }
 
@@ -153,6 +189,7 @@ static long register_server(struct file *file)
     else {
         ctx->buffer = buffer;
         WRITE_ONCE(ctx->is_server, true);
+        if (!server_file) WRITE_ONCE(server_file, file);
     }
     mutex_unlock(&state_lock);
     if (ret)
@@ -297,7 +334,7 @@ static long call_server(struct file *file, void __user *arg)
         ret = -EBUSY;
         goto unlock_state;
     }
-    ret = translate_request(client_ctx->refs, server_ctx, &transaction, file);
+    ret = translate_request(file, server_ctx, &transaction);
     if (ret) goto unlock_state;
     slot->request.id = ++next_id;
     memcpy((char *)server_ctx->buffer + i * MINI_BINDER_MAX_DATA, transaction.data, transaction.size);
@@ -317,7 +354,7 @@ static long call_server(struct file *file, void __user *arg)
             READ_ONCE(slot->state) == RPC_DONE || READ_ONCE(slot->state) == RPC_FAILED);
     mutex_lock(&state_lock);
     if (!ret && slot->state == RPC_DONE) {
-        ret = translate_request(slot->reply_refs, client_ctx, &slot->reply, slot->receiver);
+        ret = translate_reply(client_ctx, &slot->reply, slot->receiver);
         if (ret) goto finish_call;
         transaction.size = slot->reply.size;
         transaction.status = slot->reply.status;
@@ -463,7 +500,6 @@ static long send_reply(struct file *file, void __user *arg)
         ret = -EINVAL;
     else {
         slot->reply = incoming_transaction;
-        memcpy(slot->reply_refs, ((struct mini_binder_file *)file->private_data)->refs, sizeof(slot->reply_refs));
         WRITE_ONCE(slot->state, RPC_DONE);
     }
     mutex_unlock(&state_lock);
@@ -526,16 +562,6 @@ static long mini_binder_ioctl(struct file *file, unsigned int cmd, unsigned long
         return copy_to_user(user_arg, &version, sizeof(version)) ? -EFAULT : 0;
     case MINI_BINDER_REGISTER_SERVER:
         return register_server(file);
-    case MINI_BINDER_REGISTER_MANAGER: {
-        struct mini_binder_file *ctx = file->private_data;
-        long ret = 0;
-        mutex_lock(&state_lock);
-        if (!ctx->is_server) ret = -EPERM;
-        else if (server_file) ret = -EBUSY;
-        else WRITE_ONCE(server_file, file);
-        mutex_unlock(&state_lock);
-        return ret;
-    }
     case MINI_BINDER_CREATE_NODE:
         return create_node(file, user_arg);
     case MINI_BINDER_WRITE:

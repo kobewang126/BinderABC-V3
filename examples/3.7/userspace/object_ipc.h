@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-#ifndef CALC_IPC_H
-#define CALC_IPC_H
+#ifndef OBJECT_IPC_H
+#define OBJECT_IPC_H
 #include <errno.h>
 #include <stdint.h>
 #include <string.h>
@@ -9,10 +9,10 @@
 #include <parcel.h>
 #include "command.h"
 
-static int calc_transact(int fd, void *mapping, size_t page_size,
-                         __u32 code, int32_t a, int32_t b, int32_t *result)
+static int object_transact(int fd, void *mapping, size_t page_size,
+                           __u32 object, __u32 code, int32_t a, int32_t b, int32_t *result)
 {
-    struct mini_binder_transaction_data tx = { .code = code };
+    struct mini_binder_transaction_data tx = { .code = code, .target_node = object };
     struct mini_binder_command request = { .cmd = MINI_BC_TRANSACTION };
     struct mini_binder_command reply = {0};
     struct mini_binder_command release = { .cmd = MINI_BC_FREE_REPLY };
@@ -30,7 +30,7 @@ static int calc_transact(int fd, void *mapping, size_t page_size,
     if (status) return status;
     if (reply.cmd != MINI_BR_REPLY) return -EPROTO;
     tx = reply.transaction;
-    status = tx.status;
+    status = tx.object_cookie ? -EPROTO : tx.status;
     if (!status) {
         if (tx.size > page_size) status = -EPROTO;
         else {

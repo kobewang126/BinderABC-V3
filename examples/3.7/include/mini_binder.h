@@ -12,7 +12,6 @@
 #define MINI_BINDER_OBJECT_HANDLE 2U
 #define MINI_BINDER_IOC_MAGIC 'M'
 #define MINI_BINDER_GET_VERSION _IOR(MINI_BINDER_IOC_MAGIC, 0, __u32)
-#define MINI_BINDER_REGISTER_MANAGER _IO(MINI_BINDER_IOC_MAGIC, 22)
 
 struct mini_binder_transaction_data {
     __u64 id;

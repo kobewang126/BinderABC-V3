@@ -41,10 +41,10 @@
 - [第 3.3 章 在 Parcel 中描述对象](docs/03-objects/3.3-parcel-objects.md)
 - [第 3.4 章 从 Node 到客户端 Ref](docs/03-objects/3.4-node-to-ref.md)
 - [第 3.5 章 一个 Node 属于哪个服务端？](docs/03-objects/3.5-multiple-servers.md)
-- [第 3.6 章 转交已有引用](docs/03-objects/3.6-transfer-ref.md)
-- [第 3.7 章 用管理者发现服务](docs/03-objects/3.7-service-manager.md)
+- [第 3.6 章 在请求中传递本地对象](docs/03-objects/3.6-node-to-ref.md)
+- [第 3.7 章 转交已有引用](docs/03-objects/3.7-transfer-ref.md)
 
-多服务端、对象转交和 ServiceManager 在后续章节逐步引入。
+本篇先介绍多服务端和对象转交；服务发现留待后续章节。
 
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
