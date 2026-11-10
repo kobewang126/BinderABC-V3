@@ -259,6 +259,7 @@ static long call_server(struct file *file, void __user *arg)
         transaction.size = slot->reply.size;
         transaction.status = slot->reply.status;
         memcpy(client_ctx->buffer, slot->reply.data, slot->reply.size);
+        transaction.object_cookie = 0;
         client_ctx->pending_reply = transaction;
         client_ctx->reply_ready = true;
         client_ctx->reply_delivered = false;

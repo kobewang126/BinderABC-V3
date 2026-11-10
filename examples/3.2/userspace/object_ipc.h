@@ -30,7 +30,7 @@ static int object_transact(int fd, void *mapping, size_t page_size,
     if (status) return status;
     if (reply.cmd != MINI_BR_REPLY) return -EPROTO;
     tx = reply.transaction;
-    status = tx.status;
+    status = tx.object_cookie ? -EPROTO : tx.status;
     if (!status) {
         if (tx.size > page_size) status = -EPROTO;
         else {
