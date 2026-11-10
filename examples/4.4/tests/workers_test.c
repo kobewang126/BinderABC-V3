@@ -5,9 +5,12 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/syscall.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 #include <mini_binder.h>
 
@@ -52,6 +55,30 @@ static void client(int start, unsigned char number)
     assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
     munmap(mapping, (size_t)page); close(fd); _exit(0);
 }
+static void wait_for_queued_client(pid_t pid)
+{
+    struct timespec delay = {0, 10000000};
+    for (int i = 0; i < 500; i++) {
+        char path[80], line[160];
+        long nr = -1;
+        int sleeping = 0;
+        FILE *f;
+        snprintf(path, sizeof(path), "/proc/%ld/status", (long)pid);
+        f = fopen(path, "r");
+        assert(f);
+        while (fgets(line, sizeof(line), f))
+            if (!strncmp(line, "State:", 6) && strchr(line, 'S')) sleeping = 1;
+        fclose(f);
+        snprintf(path, sizeof(path), "/proc/%ld/syscall", (long)pid);
+        f = fopen(path, "r");
+        assert(f);
+        if (fscanf(f, "%ld", &nr) != 1) nr = -1;
+        fclose(f);
+        if (sleeping && nr == SYS_ioctl) return;
+        nanosleep(&delay, NULL);
+    }
+    assert(!"client did not wait in ioctl");
+}
 int main(void)
 {
     int fd = open("/dev/mini_binder", O_RDWR), start[2], status;
@@ -69,8 +96,10 @@ int main(void)
         if (!clients[i]) { close(start[1]); client(start[0], (unsigned char)(10 + i)); }
     }
     close(start[0]);
-    for (int i = 0; i < 2; i++) { workers[i].fd = fd; assert(pthread_create(&threads[i], NULL, serve, &workers[i]) == 0); }
     assert(write(start[1], "RR", 2) == 2); close(start[1]);
+    for (int i = 0; i < 2; i++) wait_for_queued_client(clients[i]);
+    puts("two client requests queued before workers started");
+    for (int i = 0; i < 2; i++) { workers[i].fd = fd; assert(pthread_create(&threads[i], NULL, serve, &workers[i]) == 0); }
     for (int i = 0; i < 2; i++) assert(pthread_join(threads[i], NULL) == 0);
     assert(workers[0].id != workers[1].id);
     for (int i = 0; i < 2; i++) assert(waitpid(clients[i], &status, 0) == clients[i] && WIFEXITED(status) && WEXITSTATUS(status) == 0);

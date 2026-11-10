@@ -6,8 +6,8 @@
 make
 sudo insmod kernel/mini_binder.ko
 ./build/version
-./build/fd_reply_test
+./build/fd_reply_demo
 sudo rmmod mini_binder
 ```
 
-实验验证回复中 Binder 对象与 fd 的转换、读取失败重试和未领取时的回收。完整说明见教程第 6.4 章。
+主实验在回复中传递文件描述符；`./build/fd_reply_test` 检查混合对象、读取失败重试和未领取时的回收。完整说明见教程第 6.4 章。

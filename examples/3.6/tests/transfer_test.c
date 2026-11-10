@@ -70,13 +70,14 @@ static void provider(int pipefd)
         assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     }
 }
-static void recipient(int pipefd)
+static void recipient(int pipefd, int proceed)
 {
     int fd = open("/dev/mini_binder", O_RDWR);
     struct mini_binder_node_create node = {.cookie = 77};
     struct mini_binder_command req = {0}, call = {.cmd = MINI_BC_TRANSACTION};
     struct mini_binder_command result = {0}, reply = {.cmd = MINI_BC_REPLY};
     const unsigned char *mapping, *data;
+    char token;
     assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
     mapping = mmap(NULL, (size_t)sysconf(_SC_PAGESIZE), PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED && ioctl(fd, MINI_BINDER_CREATE_NODE, &node) == 0);
@@ -87,19 +88,21 @@ static void recipient(int pipefd)
     assert(req.transaction.object_count == 1 && req.transaction.object_offsets[0] == 0);
     assert(get32(data) == MINI_BINDER_OBJECT_HANDLE && get32(data + 4) == 1);
     call.transaction.target_handle = get32(data + 4);
+    reply.transaction.id = req.transaction.id;
+    assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
+    assert(read(proceed, &token, 1) == 1);
+    close(proceed);
     call.transaction.code = 9;
     transact(fd, &call, &result);
     assert(result.transaction.size == 4 && get32(mapping) == 99);
     release_reply(fd);
-    reply.transaction.id = req.transaction.id;
-    reply.transaction.size = 4;
-    put32(reply.transaction.data, 99);
-    assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
-    for (;;) pause();
+    munmap((void *)mapping, (size_t)sysconf(_SC_PAGESIZE));
+    close(fd);
+    _exit(0);
 }
 int main(void)
 {
-    int p[2], fd, status;
+    int p[2], proceed[2], fd, status;
     pid_t a, b;
     uint64_t provider_id, recipient_id;
     unsigned char *mapping;
@@ -108,9 +111,10 @@ int main(void)
     a = fork(); assert(a >= 0);
     if (!a) { close(p[0]); provider(p[1]); _exit(1); }
     close(p[1]); assert(read(p[0], &provider_id, sizeof(provider_id)) == sizeof(provider_id)); close(p[0]);
-    assert(pipe(p) == 0);
+    assert(pipe(p) == 0 && pipe(proceed) == 0);
     b = fork(); assert(b >= 0);
-    if (!b) { close(p[0]); recipient(p[1]); _exit(1); }
+    if (!b) { close(p[0]); close(proceed[1]); recipient(p[1], proceed[0]); _exit(1); }
+    close(proceed[0]);
     close(p[1]); assert(read(p[0], &recipient_id, sizeof(recipient_id)) == sizeof(recipient_id)); close(p[0]);
     fd = device((void **)&mapping);
     for (uint32_t i = 0; i < 2; i++) {
@@ -135,9 +139,12 @@ int main(void)
     req.transaction.size = 12; req.transaction.object_count = 1;
     put32(req.transaction.data, MINI_BINDER_OBJECT_HANDLE); put32(req.transaction.data + 4, 2);
     transact(fd, &req, &reply);
-    assert(reply.transaction.size == 4 && get32(mapping) == 99);
+    assert(reply.transaction.status == 0 && reply.transaction.size == 0);
     release_reply(fd);
-    kill(a, SIGKILL); kill(b, SIGKILL); waitpid(a, &status, 0); waitpid(b, &status, 0);
+    assert(write(proceed[1], "R", 1) == 1);
+    close(proceed[1]);
+    assert(waitpid(b, &status, 0) == b && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    kill(a, SIGKILL); waitpid(a, &status, 0);
     munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(fd);
     puts("handle 2 translated to recipient handle 1 and invoked successfully");
     return 0;
