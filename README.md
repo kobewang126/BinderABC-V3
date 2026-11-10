@@ -40,6 +40,7 @@
 - [第 3.2 章 在驱动中表示服务对象](docs/03-objects/3.2-node.md)
 - [第 3.3 章 在 Parcel 中描述对象](docs/03-objects/3.3-parcel-objects.md)
 - [第 3.4 章 从 Node 到客户端 Ref](docs/03-objects/3.4-node-to-ref.md)
+- [第 3.5 章 多个服务端与事务路由](docs/03-objects/3.5-multiple-servers.md)
 
 多服务端、对象转交和 ServiceManager 在后续章节逐步引入。
 
