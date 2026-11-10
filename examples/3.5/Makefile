@@ -8,7 +8,7 @@ all: module userspace
 module:
 	$(MAKE) -C $(KDIR) M=$(CURDIR)/kernel modules
 
-userspace: build/version build/server_mapping_test build/concurrent_test build/command_test build/server_death build/stale_reply build/mmap_access build/parcel_demo build/parcel_test build/mapped_test build/calc_server build/calc_client build/calc_test build/object_server build/object_client build/object_test build/node_test build/object_parcel_test build/ref_test build/multi_server_test
+userspace: build/version build/server_mapping_test build/concurrent_test build/command_test build/server_death build/stale_reply build/mmap_access build/parcel_demo build/parcel_test build/mapped_test build/object_server build/object_client build/object_test build/node_test build/object_parcel_test build/ref_test build/multi_server_test
 
 build/multi_server_test: tests/multi_server_test.c include/mini_binder.h
 	mkdir -p build
@@ -49,18 +49,6 @@ build/concurrent_test: tests/concurrent_test.c userspace/command.h include/mini_
 build/command_test: tests/command_test.c include/mini_binder.h
 	mkdir -p build
 	$(CC) $(CFLAGS) -Iinclude $< -o $@
-
-build/calc_server: userspace/calc_server.c userspace/command.h userspace/parcel.c include/parcel.h include/mini_binder.h
-	mkdir -p build
-	$(CC) $(CFLAGS) -Iinclude userspace/calc_server.c userspace/parcel.c -o $@
-
-build/calc_client: userspace/calc_client.c userspace/calc_ipc.h userspace/command.h userspace/parcel.c include/parcel.h include/mini_binder.h
-	mkdir -p build
-	$(CC) $(CFLAGS) -Iinclude userspace/calc_client.c userspace/parcel.c -o $@
-
-build/calc_test: tests/calc_test.c userspace/calc_ipc.h userspace/command.h userspace/parcel.c include/parcel.h include/mini_binder.h
-	mkdir -p build
-	$(CC) $(CFLAGS) -Iinclude tests/calc_test.c userspace/parcel.c -o $@
 
 build/mapped_test: tests/mapped_test.c userspace/command.h userspace/parcel.c include/parcel.h include/mini_binder.h
 	mkdir -p build
