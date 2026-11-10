@@ -51,7 +51,8 @@
 - [第 4.2 章 从哪里找到服务？](docs/04-concurrency/4.2-service-manager.md)
 - [第 4.3 章 一个 Binder 上下文中的多个线程](docs/04-concurrency/4.3-binder-thread.md)
 - [第 4.4 章 让服务线程领取待办事务](docs/04-concurrency/4.4-proc-todo.md)
+- [第 4.5 章 把引用传回对象拥有者](docs/04-concurrency/4.5-ref-back-to-owner.md)
 
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
-各章的实际验证环境和覆盖范围以对应正文为准。第四篇 4.1 至 4.4 已在 Ubuntu 24.04 ARM64、Linux 6.8.0-147 上编译并运行对应实验。
+各章的实际验证环境和覆盖范围以对应正文为准。第四篇 4.1 至 4.5 已在 Ubuntu 24.04 ARM64、Linux 6.8.0-147 上编译并运行对应实验。
