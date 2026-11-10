@@ -11,7 +11,13 @@
 #include <unistd.h>
 #include <mini_binder.h>
 
-struct worker { int fd; uint32_t id; };
+struct worker {
+    int fd;
+    uint32_t id;
+    uint64_t request_id;
+    unsigned char input;
+    unsigned char result;
+};
 static void *serve(void *data)
 {
     struct worker *worker = data;
@@ -21,9 +27,12 @@ static void *serve(void *data)
     assert(ioctl(worker->fd, MINI_BINDER_READ, &req) == 0);
     payload = (const unsigned char *)(uintptr_t)req.transaction.data_address;
     assert(req.transaction.size == 1);
+    worker->request_id = req.transaction.id;
+    worker->input = payload[0];
+    worker->result = worker->input + 1;
     reply.transaction.id = req.transaction.id;
     reply.transaction.size = 1;
-    reply.transaction.data[0] = payload[0] + 1;
+    reply.transaction.data[0] = worker->result;
     assert(ioctl(worker->fd, MINI_BINDER_WRITE, &reply) == 0);
     return NULL;
 }
@@ -65,6 +74,10 @@ int main(void)
     for (int i = 0; i < 2; i++) assert(pthread_join(threads[i], NULL) == 0);
     assert(workers[0].id != workers[1].id);
     for (int i = 0; i < 2; i++) assert(waitpid(clients[i], &status, 0) == clients[i] && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    for (int i = 0; i < 2; i++)
+        printf("thread %u handled request %llu: %u -> %u\n", workers[i].id,
+               (unsigned long long)workers[i].request_id,
+               (unsigned int)workers[i].input, (unsigned int)workers[i].result);
     munmap(mapping, (size_t)page); close(fd);
     puts("two server threads receive separate queued requests");
     return 0;

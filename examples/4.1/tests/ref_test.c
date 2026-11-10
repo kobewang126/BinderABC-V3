@@ -45,7 +45,7 @@ int main(void)
     long page = sysconf(_SC_PAGESIZE);
     int a = open("/dev/mini_binder", O_RDONLY), b = open("/dev/mini_binder", O_RDONLY);
     void *ma, *mb;
-    __u32 ha, hb, value;
+    __u32 ha, hb, value, result_a, result_b, result_shared;
     assert(page > 0 && a >= 0 && b >= 0);
     ma = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, a, 0);
     mb = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, b, 0);
@@ -54,12 +54,12 @@ int main(void)
     assert(transact(a, ma, page, MINI_CALC_GET_OBJECT, 0, 0, 0, &ha) == 0);
     assert(transact(b, mb, page, MINI_CALC_GET_OBJECT, 0, 1, 0, &hb) == 0);
     assert(ha == 1 && hb == 1);
-    assert(transact(a, ma, page, MINI_CALC_ADD, ha, 7, 3, &value) == 0 && value == 10);
-    assert(transact(b, mb, page, MINI_CALC_MUL, hb, 7, 3, &value) == 0 && value == 21);
+    assert(transact(a, ma, page, MINI_CALC_ADD, ha, 7, 3, &result_a) == 0 && result_a == 10);
+    assert(transact(b, mb, page, MINI_CALC_MUL, hb, 7, 3, &result_b) == 0 && result_b == 21);
     {
         int shared = dup(a);
         assert(shared >= 0);
-        assert(transact(shared, ma, page, MINI_CALC_ADD, ha, 8, 4, &value) == 0 && value == 12);
+        assert(transact(shared, ma, page, MINI_CALC_ADD, ha, 8, 4, &result_shared) == 0 && result_shared == 12);
         close(shared);
     }
     assert(transact(a, ma, page, MINI_CALC_ADD, 8, 7, 3, &value) == -ENOENT);
@@ -82,6 +82,9 @@ int main(void)
         assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     }
     munmap(ma, (size_t)page); munmap(mb, (size_t)page); close(a); close(b);
+    printf("file A: handle %u, add(7, 3) = %u\n", ha, result_a);
+    printf("file B: handle %u, mul(7, 3) = %u\n", hb, result_b);
+    printf("dup A: handle %u, add(8, 4) = %u\n", ha, result_shared);
     puts("independent proc refs and dup shared refs passed");
     return 0;
 }
