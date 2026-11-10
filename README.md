@@ -67,6 +67,7 @@
 - [第 6.1 章 文件描述符指向什么？](docs/06-file-descriptors/6.1-file-descriptors.md)
 - [第 6.2 章 在请求中传递文件描述符](docs/06-file-descriptors/6.2-fd-request.md)
 - [第 6.3 章 fd 传递失败后谁负责回收？](docs/06-file-descriptors/6.3-fd-lifetime.md)
+- [第 6.4 章 在回复中传递文件描述符](docs/06-file-descriptors/6.4-fd-reply.md)
 
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
