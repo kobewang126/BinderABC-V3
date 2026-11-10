@@ -33,7 +33,7 @@ static void *client_thread(void *arg)
 {
     struct worker *worker = arg;
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION};
-    struct mini_binder_command reply = {0}, release = {.cmd = MINI_BC_FREE_REPLY};
+    struct mini_binder_command reply = {.cmd = MINI_READ_REPLY}, release = {.cmd = MINI_BC_FREE_REPLY};
     call.transaction.size = 1;
     call.transaction.data[0] = worker->input;
     assert(ioctl(worker->fd, MINI_BINDER_GET_THREAD_ID, &worker->thread_id) == 0);
@@ -43,7 +43,8 @@ static void *client_thread(void *arg)
     if (worker->input == 10)
         assert(ioctl(worker->fd, MINI_BINDER_READ, (void *)0) == -1 && errno == EFAULT);
     assert(ioctl(worker->fd, MINI_BINDER_READ, &reply) == 0 && reply.cmd == MINI_BR_REPLY);
-    assert(reply.transaction.size == 1 && reply.transaction.reply_offset < 2 * MINI_BINDER_MAX_DATA);
+    assert(reply.transaction.size == 1 && reply.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA &&
+           reply.transaction.reply_offset < 4 * MINI_BINDER_MAX_DATA);
     worker->offset = reply.transaction.reply_offset;
     worker->transaction_id = reply.transaction.id;
     worker->result = worker->mapping[worker->offset];
@@ -62,12 +63,13 @@ static void server(int ready, int stop)
     struct mini_binder_command received[2] = {0};
     struct mini_binder_command reply = {.cmd = MINI_BC_REPLY};
     unsigned char values[2], byte;
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED && write(ready, "R", 1) == 1);
     close(ready);
     for (int i = 0; i < 2; i++) {
+        received[i].cmd = MINI_READ_REQUEST;
         assert(ioctl(fd, MINI_BINDER_READ, &received[i]) == 0);
         assert(received[i].transaction.size == 1);
         values[i] = *(const unsigned char *)(uintptr_t)received[i].transaction.data_address;
@@ -78,6 +80,7 @@ static void server(int ready, int stop)
         reply.transaction.data[0] = values[i] + 1;
         assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     }
+    received[0].cmd = MINI_READ_REQUEST;
     assert(ioctl(fd, MINI_BINDER_READ, &received[0]) == 0);
     assert(received[0].transaction.size == 1);
     reply.transaction.id = received[0].transaction.id;
@@ -96,7 +99,7 @@ int main(void)
     pthread_t threads[2];
     pthread_barrier_t phase;
     struct worker workers[2];
-    struct mini_binder_command reply = {0}, release = {.cmd = MINI_BC_FREE_REPLY};
+    struct mini_binder_command reply = {.cmd = MINI_READ_REPLY}, release = {.cmd = MINI_BC_FREE_REPLY};
     struct mini_binder_command third = {.cmd = MINI_BC_TRANSACTION};
     assert(pipe(ready) == 0 && pipe(stop) == 0);
     child = fork(); assert(child >= 0);

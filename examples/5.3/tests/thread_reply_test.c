@@ -116,6 +116,7 @@ int main(void)
     assert(ioctl(fd, MINI_BINDER_WRITE, &release) == -1 && errno == ENOENT);
     third.transaction.size = 1; third.transaction.data[0] = 30;
     assert(ioctl(fd, MINI_BINDER_WRITE, &third) == -1 && errno == EBUSY);
+    assert(ioctl(fd, MINI_BINDER_THREAD_EXIT) == 0);
     barrier(&phase);
     barrier(&phase);
     assert(workers[0].offset != workers[1].offset);

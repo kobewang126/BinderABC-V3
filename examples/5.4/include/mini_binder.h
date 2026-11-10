@@ -44,6 +44,11 @@ enum mini_binder_command_code {
     MINI_BR_REPLY = 102,
 };
 
+enum mini_binder_read_kind {
+    MINI_READ_REQUEST = 1,
+    MINI_READ_REPLY = 2,
+};
+
 struct mini_binder_command {
     __u32 cmd;
     struct mini_binder_transaction_data transaction;
@@ -57,7 +62,6 @@ enum mini_binder_calc_cmd {
     MINI_CALC_GET_OBJECT = 5,
 };
 
-#define MINI_BINDER_REGISTER_SERVER _IO(MINI_BINDER_IOC_MAGIC, 1)
 #define MINI_BINDER_CREATE_NODE _IOWR(MINI_BINDER_IOC_MAGIC, 2, struct mini_binder_node_create)
 #define MINI_BINDER_WRITE _IOW(MINI_BINDER_IOC_MAGIC, 21, struct mini_binder_command)
 #define MINI_BINDER_READ _IOR(MINI_BINDER_IOC_MAGIC, 22, struct mini_binder_command)

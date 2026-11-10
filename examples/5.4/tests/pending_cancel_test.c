@@ -19,7 +19,7 @@ static void client(int cancelled, int ready)
 {
     struct sigaction action = {0};
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION};
-    struct mini_binder_command reply = {0}, release = {.cmd = MINI_BC_FREE_REPLY};
+    struct mini_binder_command reply = {.cmd = MINI_READ_REPLY}, release = {.cmd = MINI_BC_FREE_REPLY};
     long page = sysconf(_SC_PAGESIZE);
     int fd = open("/dev/mini_binder", O_RDWR);
     unsigned char *mapping;
@@ -33,7 +33,7 @@ static void client(int cancelled, int ready)
         assert(ioctl(fd, MINI_BINDER_WRITE, &call) == -1 && errno == EINTR);
     } else {
         assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
-        assert(ioctl(fd, MINI_BINDER_READ, &reply) == 0 && mapping[0] == 42);
+        assert(ioctl(fd, MINI_BINDER_READ, &reply) == 0 && mapping[reply.transaction.reply_offset] == 42);
         assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
     }
     munmap(mapping, (size_t)page); close(fd); _exit(0);
@@ -67,8 +67,8 @@ int main(void)
     int fd = open("/dev/mini_binder", O_RDWR), status;
     unsigned char *mapping;
     pid_t first, second;
-    struct mini_binder_command incoming = {0}, reply = {.cmd = MINI_BC_REPLY};
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    struct mini_binder_command incoming = {.cmd = MINI_READ_REQUEST}, reply = {.cmd = MINI_BC_REPLY};
+    assert(fd >= 0);
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED);

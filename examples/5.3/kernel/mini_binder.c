@@ -102,6 +102,35 @@ out:
     return ret;
 }
 
+static long mini_binder_thread_exit(struct mini_binder_proc *proc)
+{
+    struct pid *pid = NULL;
+    unsigned int i;
+    long ret = -ENOENT;
+
+    mutex_lock(&state_lock);
+    for (i = 0; i < ARRAY_SIZE(proc->threads); i++) {
+        struct mini_binder_thread *thread = &proc->threads[i];
+        if (thread->pid != task_pid(current)) continue;
+        if (thread->inflight || !list_empty(&thread->todo)) {
+            ret = -EBUSY;
+            break;
+        }
+        if (thread->reply_ready) {
+            proc->reply_used &= ~(1UL << thread->reply_index);
+            WRITE_ONCE(thread->reply_ready, false);
+        }
+        thread->reply_delivered = false;
+        pid = thread->pid;
+        thread->pid = NULL;
+        ret = 0;
+        break;
+    }
+    mutex_unlock(&state_lock);
+    put_pid(pid);
+    return ret;
+}
+
 /* Resolve sender-local handles and stage receiver-local references atomically. */
 static long translate_objects(struct file *sender_file,
                               struct mini_binder_proc *receiver,
@@ -600,6 +629,8 @@ static long mini_binder_ioctl(struct file *file, unsigned int cmd, unsigned long
     struct mini_binder_thread *thread = NULL;
     void __user *user_arg = (void __user *)arg;
 
+    if (cmd == MINI_BINDER_THREAD_EXIT)
+        return mini_binder_thread_exit(file->private_data);
     if (cmd == MINI_BINDER_WRITE || cmd == MINI_BINDER_READ || cmd == MINI_BINDER_GET_THREAD_ID) {
         ret = get_thread_id(file->private_data, &thread_id);
         if (ret) return ret;

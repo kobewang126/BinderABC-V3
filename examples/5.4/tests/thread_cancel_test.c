@@ -19,14 +19,14 @@ static void *client(void *arg)
 {
     struct worker *w = arg;
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION};
-    struct mini_binder_command reply = {0}, release = {.cmd = MINI_BC_FREE_REPLY};
+    struct mini_binder_command reply = {.cmd = MINI_READ_REPLY}, release = {.cmd = MINI_BC_FREE_REPLY};
     call.transaction.size = 1; call.transaction.data[0] = w->input;
     if (w->input == 10) {
         assert(ioctl(w->fd, MINI_BINDER_WRITE, &call) == -1 && errno == EINTR);
     } else {
         assert(ioctl(w->fd, MINI_BINDER_WRITE, &call) == 0);
         assert(ioctl(w->fd, MINI_BINDER_READ, &reply) == 0);
-        assert(reply.transaction.reply_offset < 2 * MINI_BINDER_MAX_DATA);
+        assert(reply.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA && reply.transaction.reply_offset < 4 * MINI_BINDER_MAX_DATA);
         assert(w->mapping[reply.transaction.reply_offset] == 21);
         assert(ioctl(w->fd, MINI_BINDER_WRITE, &release) == 0);
     }
@@ -39,11 +39,12 @@ static void server(int notify, int control)
     void *mapping;
     unsigned char byte, values[2];
     struct mini_binder_command req[2] = {0}, reply = {.cmd = MINI_BC_REPLY};
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED && write(notify, "R", 1) == 1);
     for (int i = 0; i < 2; i++) {
+        req[i].cmd = MINI_READ_REQUEST;
         assert(ioctl(fd, MINI_BINDER_READ, &req[i]) == 0);
         values[i] = *(const unsigned char *)(uintptr_t)req[i].transaction.data_address;
         if (values[i] == 10) cancelled = i;
@@ -57,6 +58,7 @@ static void server(int notify, int control)
     reply.transaction.id = req[1 - cancelled].transaction.id;
     reply.transaction.data[0] = 21;
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
+    req[0].cmd = MINI_READ_REQUEST;
     assert(ioctl(fd, MINI_BINDER_READ, &req[0]) == 0);
     reply.transaction.id = req[0].transaction.id;
     reply.transaction.data[0] = 31;
@@ -74,7 +76,7 @@ int main(void)
     struct sigaction action = {0};
     struct worker workers[2];
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION};
-    struct mini_binder_command reply = {0}, release = {.cmd = MINI_BC_FREE_REPLY};
+    struct mini_binder_command reply = {.cmd = MINI_READ_REPLY}, release = {.cmd = MINI_BC_FREE_REPLY};
     action.sa_handler = on_signal; sigemptyset(&action.sa_mask);
     assert(sigaction(SIGUSR1, &action, NULL) == 0);
     assert(pipe(notify) == 0 && pipe(control) == 0);
@@ -96,7 +98,7 @@ int main(void)
     call.transaction.size = 1; call.transaction.data[0] = 30;
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
     assert(ioctl(fd, MINI_BINDER_READ, &reply) == 0);
-    assert(reply.transaction.reply_offset < 2 * MINI_BINDER_MAX_DATA && mapping[reply.transaction.reply_offset] == 31);
+    assert(reply.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA && reply.transaction.reply_offset < 4 * MINI_BINDER_MAX_DATA && mapping[reply.transaction.reply_offset] == 31);
     assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
     assert(write(control[1], "S", 1) == 1); close(control[1]);
     assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
