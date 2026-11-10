@@ -42,6 +42,7 @@
 - [第 3.4 章 从 Node 到客户端 Ref](docs/03-objects/3.4-node-to-ref.md)
 - [第 3.5 章 多个服务端与事务路由](docs/03-objects/3.5-multiple-servers.md)
 - [第 3.6 章 转交已有引用](docs/03-objects/3.6-transfer-ref.md)
+- [第 3.7 章 用管理者发现服务](docs/03-objects/3.7-service-manager.md)
 
 多服务端、对象转交和 ServiceManager 在后续章节逐步引入。
 

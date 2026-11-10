@@ -576,7 +576,7 @@ static int mini_binder_release(struct inode *inode, struct file *file)
             if (nodes[i].owner == file) memset(&nodes[i], 0, sizeof(nodes[i]));
         for (i = 0; i < SLOT_COUNT; i++) {
             if (slots[i].receiver != file) continue;
-            if (slots[i].state == RPC_PENDING || slots[i].state == RPC_PROCESSING) {
+            if (slots[i].state == RPC_PENDING || slots[i].state == RPC_PROCESSING || slots[i].state == RPC_DONE) {
                 WRITE_ONCE(slots[i].state, RPC_FAILED);
                 wake = true;
             } else if (slots[i].state == RPC_CANCELLED) {
