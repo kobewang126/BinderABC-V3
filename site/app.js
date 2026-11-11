@@ -7,6 +7,7 @@ import { flows } from './flows-data.js';
 
 const icons = { BookOpen, PanelRight, PanelLeft, Folder, FileCode2, ChevronRight, Code2, Copy, ArrowUpRight, TerminalSquare, FolderInput, Eraser, ChevronDown, ChevronUp, ArrowLeft, ArrowRight, RotateCcw, Maximize2, X };
 const { chapters, files, annotations } = window.BINDERABC_DATA;
+flows.push(...(window.BINDERABC_DATA.extraFlows || []));
 const $ = (id) => document.getElementById(id);
 let currentChapter = 0;
 let currentFile = '';
@@ -186,9 +187,9 @@ function openSource(filename, ranges = [], { openPanel = true, explanation } = {
 }
 
 function group(path) {
-  if (path.includes('00-preparation')) return '预备篇';
-  if (path.includes('01-rpc')) return '第一篇 · 同步 RPC';
-  return '第二篇 · 事务与映射';
+  const groups = ['预备篇', '第一篇 · 同步 RPC', '第二篇 · 事务与映射', '第三篇 · 对象与引用', '第四篇 · 进程与线程', '第五篇 · 同步调用', '第六篇 · 文件描述符'];
+  const match = path.match(/docs\/(?:0([0-6])-[^/]+\/|appendices\/([0-6])-review\.md)/);
+  return groups[Number(match?.[1] ?? match?.[2] ?? 0)];
 }
 function renderNavigation() {
   const list = $('chapter-list');

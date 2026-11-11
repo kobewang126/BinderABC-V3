@@ -17,16 +17,18 @@ const dataCheck = await page.evaluate(() => {
     data.files['examples/2.3/include/mini_binder.h']?.includes('struct mini_binder_transaction_data');
 });
 if (!dataCheck) throw new Error('V3 chapter or source snapshot mismatch');
-if (await page.locator('.chapter-link').count() !== 15) throw new Error('Expected 15 chapters');
-for (let i = 0; i < 15; i++) {
-  await page.locator('.chapter-link').nth(i).click();
+const chapterIndices = await page.evaluate(() => window.BINDERABC_DATA.chapters.flatMap((chapter, index) =>
+  /^docs\/(?:00-preparation|01-rpc|02-transaction)\//.test(chapter.path) ? [index] : []));
+if (chapterIndices.length !== 15) throw new Error('Expected 15 chapters in parts 0–2');
+for (let i = 0; i < chapterIndices.length; i++) {
+  await page.locator('.chapter-link').nth(chapterIndices[i]).click();
   const expected = await page.evaluate(index => {
     const chapter = window.BINDERABC_DATA.chapters[index];
     return {
       refs: (chapter.markdown.match(/源码：`examples\//g) || []).length,
       diagrams: (chapter.markdown.match(/^(?:```|~~~)mermaid/gm) || []).length
     };
-  }, i);
+  }, chapterIndices[i]);
   if (await page.locator('.source-ref').count() !== expected.refs) throw new Error(`Source references: chapter ${i}`);
   if (expected.diagrams) await page.waitForFunction(n => document.querySelectorAll('.static-flow-scroll svg').length === n, expected.diagrams, { timeout: 15000 });
   if (flowCounts[i]) {

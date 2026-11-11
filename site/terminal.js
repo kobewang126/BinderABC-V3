@@ -140,7 +140,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     const cwd = sessions[active].cwd;
     if (args[0] === 'insmod' && args.length === 2) {
       const isHello = cwd === '/examples/0.3' && /^\.?\/?binderabc_hello\.ko$/.test(args[1]);
-      const isBinder = /^\/examples\/(?:1\.[234]|2\.[134567])$/.test(cwd) && args[1] === 'kernel/mini_binder.ko';
+      const isBinder = !!files[`${cwd.slice(1)}/kernel/mini_binder.c`] && args[1] === 'kernel/mini_binder.ko';
       if (!isHello && !isBinder) return error('insmod: 模拟器不支持该模块路径');
       if (!currentBuild()?.has('*')) return error('insmod: 未模拟构建模块，请先运行 make');
       if (loaded) return error('insmod: 已有模拟模块加载，请先卸载');
@@ -157,6 +157,26 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     error('sudo: 仅支持模拟 insmod、rmmod 和 dmesg');
   }
   const versions = { '1.2': '1', '1.3': '3', '1.4': '4', '2.1': '0201', '2.3': '0203', '2.4': '0204', '2.5': '0205', '2.6': '0206', '2.7': '0207' };
+  for (const part of [3, 4, 5, 6]) for (let chapter = 1; chapter <= 7; chapter++) versions[`${part}.${chapter}`] = `0${part}0${chapter}`;
+  const chapterTests = {
+    '3.3': { object_parcel_test: 'object offsets, decoding, malformed data and rollback passed' },
+    '3.4': { ref_test: 'file A: handle 1, add(7, 3) = 10\nfile B: handle 1, mul(7, 3) = 21\nper-file handles, node conversion and calls passed' },
+    '3.5': { multi_server_test: 'handle 1 -> server 1: 1\nhandle 2 -> server 2: 2\ntwo servers: routing and exit isolation passed' },
+    '3.6': { local_transfer_test: 'local Node -> receiver Ref 1 -> original object: 77', transfer_test: 'handle 2 translated to recipient handle 1 and invoked successfully' },
+    '4.1': { ref_test: 'file A: handle 1, add(7, 3) = 10\nfile B: handle 1, mul(7, 3) = 21\ndup A: handle 1, add(8, 4) = 12\nindependent proc refs and dup shared refs passed' },
+    '4.2': { manager_test: 'service calculator: registered, found and called (result 42)\nmanager handle 0: add, get, call and manager exit passed' },
+    '4.3': { thread_test: 'proc A: main thread 1, workers 2 and 3\ndup A: thread 1; proc B: thread 1\none proc, distinct thread records; dup shares proc passed' },
+    '4.4': { workers_test: 'two client requests queued before workers started\nthread 1 handled request 1: 10 -> 11\nthread 2 handled request 2: 11 -> 12\ntwo server threads receive separate queued requests' },
+    '4.5': { return_to_owner_test: 'reply Ref -> owner local object: 42\nrequest Ref -> owner local object: 42' },
+    '5.1': { thread_reply_test: 'thread input 10: reply 11 at offset 0\nthread input 20: reply 21 at offset 256\nreverse replies, thread isolation, full slots and reuse passed' },
+    '5.2': { thread_reply_test: 'thread 1: transaction 1, 10 -> 11, offset 0\nthread 2: transaction 2, 20 -> 21, offset 256\nreverse replies, thread isolation, full slots and reuse passed', target_wakeup_test: 'reply id=10 -> binder thread=2: target wake events 1; other wake events 0\nreply id=9 -> binder thread=1\nboth threads received their own replies' },
+    '5.3': { thread_exit_test: '12 exited threads reused record; reply offset 0 reused\nexplicit thread exit and reply cleanup passed' },
+    '5.4': { role_test: 'ordinary client passed a local object and handled its call: twice(7) = 14' },
+    '6.1': { fd_demo: 'fd 3 and dup 5 share an open file\nchild via dup: ab; parent via fd: cd\nindependent open: ab' },
+    '6.2': { fd_request_demo: 'receiver fd 4 read: data\nrequest fd delivered', mixed_object_test: 'sender fd 3 -> receiver fd 4; binder handle 1\nreceiver read after sender closed: data' },
+    '6.3': { fd_failure_test: 'invalid fd, queued cancellation and receiver death released file references\nfd-table exhaustion and copy failure rolled back reserved descriptors' },
+    '6.4': { fd_reply_demo: 'reply fd 4 read: data', fd_reply_test: 'reply fds 62 and 63 after EFAULT and EMFILE retries: data\nunread fd replies released by thread exit, free and file close\nsubsequent transaction returned 55' }
+  };
   function program(name, args, cwd = sessions[active].cwd) {
     const ch = cwd.split('/').at(-1);
     if (!hasBinary(name, cwd)) return error(`${name}: 未模拟构建该程序`);
@@ -169,6 +189,9 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     if (cwd === '/examples' && name in rootPrograms && !args.length) return line(rootPrograms[name]);
     if (name === 'parcel_demo' && args.length === 0) return line('encoded size: 16 bytes\ndecoded: number=42, text=Binder');
     if (name === 'parcel_test' && args.length === 0) { line('模拟回放：未实际运行测试。', 'info'); return line('parcel tests passed'); }
+    if (['3.3', '6.1'].includes(ch) && name in (chapterTests[ch] || {}) && !args.length) {
+      line('模拟回放：未实际运行程序。', 'info'); return line(chapterTests[ch][name]);
+    }
     if (!loaded || loaded.name !== 'mini_binder') return error('open /dev/mini_binder: 模拟设备未加载');
     if (loaded.cwd !== cwd) return error('模拟驱动版本与当前章节不匹配，请卸载后加载对应章节模块');
     if (name === 'version') {
@@ -177,13 +200,31 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
       if (args.length === 1 && args[0] === '--bad-address') return line('invalid user address rejected: EFAULT');
       return error('version: 不支持的参数');
     }
-    if (name === 'server' || name === 'transaction_server' || name === 'calc_server') {
+    if (name === 'server' || name === 'transaction_server' || name === 'calc_server' || name === 'object_server') {
       if (args.length) return error('服务端不接受参数');
       if (sessions.some(session => session.server)) return error('register server: 模拟服务端已注册');
-      sessions[active].server = name === 'server' ? 'add' : name === 'calc_server' ? 'calculator' : 'transaction';
+      sessions[active].server = name === 'server' ? 'add' : name === 'calc_server' ? 'calculator' : name === 'object_server' ? 'object' : 'transaction';
+      if (name === 'object_server') return line(ch === '3.1' ? 'object server ready' : 'object 1: node=1\nobject 2: node=2\nobject server ready');
       return line(name === 'server' ? 'server ready' : name === 'calc_server' ? 'calculator server ready' : 'transaction server ready');
     }
     const service = sessions.find(session => session.server)?.server;
+    if (name === 'object_client') {
+      if (service !== 'object') return error('object_client: 对象服务端尚未启动');
+      const params = ch === '3.1' ? args : args.slice(1);
+      if (params.length !== 3 || !['add', 'mul'].includes(params[0]) || !params.slice(1).every(x => /^-?\d+$/.test(x))) return error('object_client: 参数无效');
+      if (ch !== '3.1' && (args.length !== 4 || !['1', '2'].includes(args[0]) || (args[0] === '1') !== (params[0] === 'add'))) return error('object_client: 对象编号或操作无效');
+      const [a, b] = params.slice(1).map(BigInt), result = params[0] === 'add' ? a + b : a * b;
+      if ([a, b, result].some(v => v < -2147483648n || v > 2147483647n)) return error('object_client: 参数或结果超出范围');
+      return line(`${params[0]}(${a}, ${b}) = ${result}`);
+    }
+    if (name in (chapterTests[ch] || {}) && !args.length) {
+      if (['3.4', '4.1'].includes(ch) && service !== 'object') return error(`${name}: 对象服务端尚未启动`);
+      if (service && !['3.4', '4.1'].includes(ch)) return error(`${name}: 请先停止普通服务端`);
+      line('模拟回放：未实际运行测试。', 'info');
+      if (ch === '5.2' && name === 'target_wakeup_test') logs.push('mini_binder: reply id=10 wakes thread=2', 'mini_binder: reply id=9 wakes thread=1');
+      if (ch === '5.2' && name === 'thread_reply_test') logs.push('mini_binder: reply id=2 wakes thread=2', 'mini_binder: reply id=1 wakes thread=1', 'mini_binder: reply id=3 wakes thread=3');
+      return line(chapterTests[ch][name]);
+    }
     if (name === 'client') {
       if (!service) return error('call: 模拟服务端尚未启动');
       if (service !== 'add') return error('client: 服务端类型不匹配');
@@ -269,6 +310,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
       return line('name:           binderabc_hello\nvermagic:       6.8.0-147-generic SMP preempt mod_unload modversions aarch64');
     }
     if (text === 'sudo dmesg | tail -n 20' || (command === 'sudo' && words.join(' ') === 'dmesg')) return line(logs.join('\n') || '(模拟日志为空)');
+    if (command === 'sudo' && words[0]?.startsWith('./build/')) return program(words[0].slice(8), words.slice(1));
     if (command === 'sudo') return moduleCommand(words);
     if (command === 'wait' && !words.length) return line('模拟：后台客户端已完成。', 'info');
     if (command === 'timeout' && ['10', '15'].includes(words[0]) && words[1]?.startsWith('./build/')) return program(words[1].slice(8), words.slice(2));

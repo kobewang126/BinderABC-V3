@@ -2,7 +2,7 @@
   "name": "binderabc-reader",
   "private": true,
   "type": "module",
-  "scripts": { "build": "node build.mjs" },
+  "scripts": { "build": "node build.mjs", "verify": "node verify-0-2.mjs && node verify-v3.mjs" },
   "dependencies": {
     "esbuild": "^0.25.0",
     "lucide": "^0.468.0",
