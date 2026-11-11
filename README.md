@@ -12,6 +12,7 @@
 - [0.2 从函数调用到系统调用](docs/00-preparation/0.2-syscalls.md)
 - [0.3 第一个 Linux 内核模块](docs/00-preparation/0.3-kernel-module.md)
 - [0.4 搭建 Linux 内核实验环境](docs/00-preparation/0.4-kernel-environment.md)
+- [预备篇自测](docs/appendices/0-review.md)
 
 ### 1 第一篇：从函数调用到同步 RPC
 
@@ -19,6 +20,7 @@
 - [第 1.2 章 设计第一个字符设备驱动](docs/01-rpc/1.2-character-device.md)
 - [第 1.3 章 实现第一个同步 RPC](docs/01-rpc/1.3-sync-rpc.md)
 - [第 1.4 章 让多个客户端等待调用](docs/01-rpc/1.4-multiple-clients.md)
+- [第一篇自测](docs/appendices/1-review.md)
 
 ### 2 第二篇：映射、Parcel 与事务
 
@@ -29,6 +31,7 @@
 - [第 2.5 章 用事务命令选择服务函数](docs/02-transaction/2.5-command-dispatch.md)
 - [第 2.6 章 使用 BC 和 BR 命令](docs/02-transaction/2.6-bc-br.md)
 - [第 2.7 章 多笔事务与用户地址](docs/02-transaction/2.7-concurrent-transactions.md)
+- [第二篇自测](docs/appendices/2-review.md)
 
 实验时使用各章自带的驱动和程序，不能跨章节混用。
 
@@ -42,6 +45,7 @@
 - [第 3.4 章 从 Node 到客户端 Ref](docs/03-objects/3.4-node-to-ref.md)
 - [第 3.5 章 一个 Node 属于哪个服务端？](docs/03-objects/3.5-multiple-servers.md)
 - [第 3.6 章 转交已有引用](docs/03-objects/3.6-transfer-ref.md)
+- [第三篇自测](docs/appendices/3-review.md)
 
 本篇先介绍多服务端和对象转交；服务发现留待后续章节。
 
@@ -52,6 +56,7 @@
 - [第 4.3 章 一个 Binder 上下文中的多个线程](docs/04-concurrency/4.3-binder-thread.md)
 - [第 4.4 章 让服务线程领取待办事务](docs/04-concurrency/4.4-proc-todo.md)
 - [第 4.5 章 把引用传回对象拥有者](docs/04-concurrency/4.5-ref-back-to-owner.md)
+- [第四篇自测](docs/appendices/4-review.md)
 
 第三、四篇的额外检查见[可选回归测试](docs/appendices/3-4-regression.md)。
 
@@ -61,6 +66,7 @@
 - [第 5.2 章 把回复交给发起调用的线程](docs/05-threading/5.2-thread-todo.md)
 - [第 5.3 章 线程离开时怎样释放资源？](docs/05-threading/5.3-thread-exit.md)
 - [第 5.4 章 客户端也可以提供 Binder 对象](docs/05-threading/5.4-client-objects.md)
+- [第五篇自测](docs/appendices/5-review.md)
 
 ### 6 第六篇：Binder 中的文件描述符
 
@@ -68,6 +74,7 @@
 - [第 6.2 章 在请求中传递文件描述符](docs/06-file-descriptors/6.2-fd-request.md)
 - [第 6.3 章 fd 传递失败后谁负责回收？](docs/06-file-descriptors/6.3-fd-lifetime.md)
 - [第 6.4 章 在回复中传递文件描述符](docs/06-file-descriptors/6.4-fd-reply.md)
+- [第六篇自测](docs/appendices/6-review.md)
 
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 

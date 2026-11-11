@@ -542,6 +542,8 @@ static long send_reply(struct file *file, void __user *arg)
         list_add_tail(&slot->reply_work, &slot->caller->todo);
         atomic_inc(&slot->caller->todo_count);
         WRITE_ONCE(slot->state, RPC_DONE);
+        pr_info("mini_binder: reply id=%llu wakes thread=%u\n",
+                (unsigned long long)id, slot->caller->id);
         wake_up_interruptible(&slot->caller->wait);
     }
     mutex_unlock(&state_lock);
