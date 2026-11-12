@@ -5,12 +5,15 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <string.h>
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+
+static int demo;
 
 static void *map(int fd)
 {
@@ -28,10 +31,10 @@ static void server(int ready, int stop)
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     mapping = map(fd);
     assert(write(ready, "R", 1) == 1); close(ready);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < (demo ? 2 : 3); i++) {
         assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
         reply.transaction.id = req.transaction.id;
-        reply.transaction.size = 1; reply.transaction.data[0] = (unsigned char)(11 + i * 10);
+        reply.transaction.size = 1; reply.transaction.data[0] = (unsigned char)((demo ? 21 : 11) + i * 10);
         assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     }
     assert(read(stop, &byte, 1) == 1); close(stop);
@@ -44,7 +47,7 @@ static void *registration(void *data)
     uint32_t id;
     assert(ioctl(arg->fd, MINI_BINDER_GET_THREAD_ID, &id) == 0 && id == 1);
     assert(ioctl(arg->fd, MINI_BINDER_THREAD_EXIT) == 0);
-    assert(ioctl(arg->fd, MINI_BINDER_THREAD_EXIT) == -1 && errno == ENOENT);
+    if (!demo) assert(ioctl(arg->fd, MINI_BINDER_THREAD_EXIT) == -1 && errno == ENOENT);
     return NULL;
 }
 static void *leave_reply(void *data)
@@ -69,8 +72,10 @@ static void *leave_unread(void *data)
     assert(ioctl(arg->fd, MINI_BINDER_THREAD_EXIT) == 0);
     return NULL;
 }
-int main(void)
+int main(int argc, char **argv)
 {
+    demo = argc == 2 && strcmp(argv[1], "--demo") == 0;
+    assert(argc == 1 || demo);
     int ready[2], stop[2], fd, status;
     pid_t child;
     unsigned char byte, *mapping;
@@ -86,13 +91,15 @@ int main(void)
     fd = open("/dev/mini_binder", O_RDWR); assert(fd >= 0);
     mapping = map(fd);
     arg = (struct arg){.fd = fd, .mapping = mapping};
-    assert(ioctl(fd, MINI_BINDER_THREAD_EXIT) == -1 && errno == ENOENT);
-    for (int i = 0; i < 12; i++) {
+    if (!demo) assert(ioctl(fd, MINI_BINDER_THREAD_EXIT) == -1 && errno == ENOENT);
+    for (int i = 0; i < (demo ? 1 : 12); i++) {
         assert(pthread_create(&thread, NULL, registration, &arg) == 0);
         assert(pthread_join(thread, NULL) == 0);
     }
-    assert(pthread_create(&thread, NULL, leave_unread, &arg) == 0);
-    assert(pthread_join(thread, NULL) == 0);
+    if (!demo) {
+        assert(pthread_create(&thread, NULL, leave_unread, &arg) == 0);
+        assert(pthread_join(thread, NULL) == 0);
+    }
     assert(pthread_create(&thread, NULL, leave_reply, &arg) == 0);
     assert(pthread_join(thread, NULL) == 0);
     call.transaction.size = 1; call.transaction.data[0] = 30;
@@ -104,7 +111,8 @@ int main(void)
     assert(write(stop[1], "S", 1) == 1); close(stop[1]);
     assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(fd);
-    printf("12 exited threads reused record; reply offset %u reused\n", arg.offset);
+    if (demo) printf("exited thread released reply offset %u; next caller reused it\n", arg.offset);
+    else printf("12 exited threads reused record; reply offset %u reused\n", arg.offset);
     puts("explicit thread exit and reply cleanup passed");
     return 0;
 }

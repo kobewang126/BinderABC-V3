@@ -25,8 +25,14 @@ static void serve(int ready, int finish)
             object(&reply.transaction, 0, MINI_BINDER_OBJECT_LOCAL, calc.cookie);
         } else if (event.transaction.code == SUBTRACT) {
             assert(event.transaction.object_cookie == calc.cookie && event.transaction.size == 8);
-            reply.transaction.size = 4;
-            put32(reply.transaction.data, (uint32_t)calc.invoke((int)get32(data), (int)get32(data + 4)));
+            struct object_parcel request, result;
+            uint32_t a, b;
+            assert(parcel_from_transaction(&request, &event.transaction, data) == 0);
+            assert(parcel_read_u32(&request.bytes, &a) == 0);
+            assert(parcel_read_u32(&request.bytes, &b) == 0);
+            object_parcel_init(&result, reply.transaction.data, sizeof(reply.transaction.data));
+            assert(parcel_write_u32(&result.bytes, (uint32_t)calc.invoke((int)a, (int)b)) == 0);
+            parcel_to_transaction(&reply.transaction, &result);
         } else assert(event.transaction.code == STOP);
         assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
         if (event.transaction.code == STOP) break;
@@ -48,14 +54,19 @@ int main(void)
     for (unsigned int i = 0; i < 2; i++) {
         transact(fd, 0, GET_OBJECT, &event);
         const unsigned char *data = mapping + event.transaction.reply_offset;
-        assert(get32(data) == MINI_BINDER_OBJECT_HANDLE);
-        handles[i] = get32(data + 4);
+        struct parcel_object received = read_object(&event.transaction, data);
+        assert(received.type == OBJECT_PARCEL_HANDLE);
+        handles[i] = (uint32_t)received.value;
         printf("GET_OBJECT %u: LOCAL(cookie=77) -> client handle %u\n", i + 1, handles[i]);
         free_reply(fd);
     }
     assert(handles[0] == handles[1]);
     call.transaction.target_handle = handles[0]; call.transaction.code = SUBTRACT;
-    call.transaction.size = 8; put32(call.transaction.data, 7); put32(call.transaction.data + 4, 3);
+    struct object_parcel arguments;
+    object_parcel_init(&arguments, call.transaction.data, sizeof(call.transaction.data));
+    assert(parcel_write_u32(&arguments.bytes, 7) == 0);
+    assert(parcel_write_u32(&arguments.bytes, 3) == 0);
+    parcel_to_transaction(&call.transaction, &arguments);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0); read_reply(fd, &event);
     assert(get32(mapping + event.transaction.reply_offset) == 4);
     printf("handle %u: sub(7, 3) = %u\n", handles[0], get32(mapping + event.transaction.reply_offset));

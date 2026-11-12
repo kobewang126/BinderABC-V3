@@ -5,12 +5,15 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <string.h>
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+
+static int demo;
 
 struct worker {
     int fd;
@@ -37,7 +40,7 @@ static void *client_thread(void *arg)
     assert(ioctl(worker->fd, MINI_BINDER_WRITE, &call) == 0);
     barrier(worker->phase);
     barrier(worker->phase);
-    if (worker->input == 10)
+    if (!demo && worker->input == 10)
         assert(ioctl(worker->fd, MINI_BINDER_READ, (void *)0) == -1 && errno == EFAULT);
     assert(ioctl(worker->fd, MINI_BINDER_READ, &reply) == 0 && reply.cmd == MINI_BR_REPLY);
     assert(reply.transaction.size == 1 && reply.transaction.reply_offset < 2 * MINI_BINDER_MAX_DATA);
@@ -74,17 +77,21 @@ static void server(int ready, int stop)
         reply.transaction.data[0] = values[i] + 1;
         assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     }
-    assert(ioctl(fd, MINI_BINDER_READ, &received[0]) == 0);
-    assert(received[0].transaction.size == 1);
-    reply.transaction.id = received[0].transaction.id;
-    reply.transaction.data[0] = *(const unsigned char *)(uintptr_t)received[0].transaction.data_address + 1;
-    assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
+    if (!demo) {
+        assert(ioctl(fd, MINI_BINDER_READ, &received[0]) == 0);
+        assert(received[0].transaction.size == 1);
+        reply.transaction.id = received[0].transaction.id;
+        reply.transaction.data[0] = *(const unsigned char *)(uintptr_t)received[0].transaction.data_address + 1;
+        assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
+    }
     assert(read(stop, &byte, 1) == 1);
     close(stop); munmap(mapping, (size_t)page); close(fd); _exit(0);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    demo = argc == 2 && strcmp(argv[1], "--demo") == 0;
+    assert(argc == 1 || demo);
     int ready[2], stop[2], fd, status;
     pid_t child;
     unsigned char byte, *mapping;
@@ -108,10 +115,12 @@ int main(void)
         assert(pthread_create(&threads[i], NULL, client_thread, &workers[i]) == 0);
     }
     barrier(&phase);
-    assert(ioctl(fd, MINI_BINDER_READ, &reply) == -1 && errno == ENOENT);
-    assert(ioctl(fd, MINI_BINDER_WRITE, &release) == -1 && errno == ENOENT);
-    third.transaction.size = 1; third.transaction.data[0] = 30;
-    assert(ioctl(fd, MINI_BINDER_WRITE, &third) == -1 && errno == EBUSY);
+    if (!demo) {
+        assert(ioctl(fd, MINI_BINDER_READ, &reply) == -1 && errno == ENOENT);
+        assert(ioctl(fd, MINI_BINDER_WRITE, &release) == -1 && errno == ENOENT);
+        third.transaction.size = 1; third.transaction.data[0] = 30;
+        assert(ioctl(fd, MINI_BINDER_WRITE, &third) == -1 && errno == EBUSY);
+    }
     barrier(&phase);
     barrier(&phase);
     assert(workers[0].offset != workers[1].offset);
@@ -121,13 +130,16 @@ int main(void)
                (unsigned int)workers[i].result, workers[i].offset);
     barrier(&phase);
     for (int i = 0; i < 2; i++) assert(pthread_join(threads[i], NULL) == 0);
-    assert(ioctl(fd, MINI_BINDER_WRITE, &third) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &reply) == 0);
-    assert(reply.transaction.size == 1 && mapping[reply.transaction.reply_offset] == 31);
-    assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
+    if (!demo) {
+        assert(ioctl(fd, MINI_BINDER_WRITE, &third) == 0);
+        assert(ioctl(fd, MINI_BINDER_READ, &reply) == 0);
+        assert(reply.transaction.size == 1 && mapping[reply.transaction.reply_offset] == 31);
+        assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
+    }
     assert(write(stop[1], "S", 1) == 1); close(stop[1]);
     assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     pthread_barrier_destroy(&phase); munmap(mapping, (size_t)page); close(fd);
-    puts("reverse replies, thread isolation, full slots and reuse passed");
+    puts(demo ? "reverse replies and thread isolation passed" :
+                "reverse replies, thread isolation, full slots and reuse passed");
     return 0;
 }

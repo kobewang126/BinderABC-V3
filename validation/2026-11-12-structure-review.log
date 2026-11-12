@@ -1,0 +1,455 @@
+Ubuntu 24.04 ARM64; Linux 6.8.0-147-generic; 2026-11-12
+All chapter modules built, loaded, tested, and unloaded.
+
+Chapter 4.2
+RUN 4.2 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 4.2 build/manager_test
+manager: handle 0 ready
+provider: calculator registered with manager
+client: get calculator through handle 0 -> local handle 1
+client: call handle 1 -> result 42
+regression: duplicate manager, malformed query, missing name and process exits
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 4.2 build/local_transfer_test
+local Node -> receiver Ref 1 -> original object: 77
+RUN 4.2 build/multi_server_test
+two servers: routing and exit isolation passed
+DEMO 4.2 manager_test
+manager: handle 0 ready
+provider: calculator registered with manager
+client: get calculator through handle 0 -> local handle 1
+client: call handle 1 -> result 42
+service calculator: registered, found and called (result 42)
+
+Chapter 4.3
+RUN 4.3 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 4.3 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 4.3 build/local_transfer_test
+local Node -> receiver Ref 1 -> original object: 77
+RUN 4.3 build/multi_server_test
+two servers: routing and exit isolation passed
+RUN 4.3 build/thread_test
+proc A: main thread 1, workers 2 and 3
+dup A: thread 1; proc B: thread 1
+one proc, distinct thread records; dup shares proc passed
+DEMO 4.3 thread_test
+proc A: main thread 1, workers 2 and 3
+dup A: thread 1; proc B: thread 1
+one proc, distinct thread records; dup shares proc passed
+
+Chapter 4.4
+RUN 4.4 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 4.4 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 4.4 build/local_transfer_test
+local Node -> receiver Ref 1 -> original object: 77
+RUN 4.4 build/multi_server_test
+two servers: routing and exit isolation passed
+RUN 4.4 build/thread_test
+one proc, distinct thread records; dup shares proc passed
+RUN 4.4 build/concurrent_test
+two slots, distinct user addresses, reverse replies, full capacity and reuse passed
+RUN 4.4 build/server_death
+server death wakes both clients with EPIPE
+RUN 4.4 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 4.4 build/pending_cancel_test
+pending cancellation removes work and next request succeeds
+RUN 4.4 build/workers_test
+two client requests queued before workers started
+thread 1 handled request 22: 10 -> 11
+thread 2 handled request 23: 11 -> 12
+two server threads receive separate queued requests
+
+Chapter 4.5
+RUN 4.5 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 4.5 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 4.5 build/local_transfer_test
+local Node -> receiver Ref 1 -> original object: 77
+RUN 4.5 build/multi_server_test
+two servers: routing and exit isolation passed
+RUN 4.5 build/thread_test
+one proc, distinct thread records; dup shares proc passed
+RUN 4.5 build/concurrent_test
+two slots, distinct user addresses, reverse replies, full capacity and reuse passed
+RUN 4.5 build/server_death
+server death wakes both clients with EPIPE
+RUN 4.5 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 4.5 build/pending_cancel_test
+pending cancellation removes work and next request succeeds
+RUN 4.5 build/workers_test
+two server threads receive separate queued requests
+RUN 4.5 build/return_to_owner_test
+reply Ref -> owner local object: 42
+request Ref -> owner local object: 42
+
+Chapter 5.1
+RUN 5.1 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 5.1 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 5.1 build/local_transfer_test
+local Node -> receiver Ref 1 -> original object: 77
+RUN 5.1 build/multi_server_test
+two servers: routing and exit isolation passed
+RUN 5.1 build/thread_test
+one proc, distinct thread records; dup shares proc passed
+RUN 5.1 build/concurrent_test
+two slots, distinct user addresses, reverse replies, full capacity and reuse passed
+RUN 5.1 build/server_death
+server death wakes both clients with EPIPE
+RUN 5.1 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 5.1 build/pending_cancel_test
+pending cancellation removes work and next request succeeds
+RUN 5.1 build/workers_test
+two server threads receive separate queued requests
+RUN 5.1 build/return_to_owner_test
+reply Ref -> owner local object: 42
+request Ref -> owner local object: 42
+RUN 5.1 build/thread_reply_test
+thread input 10: reply 11 at offset 0
+thread input 20: reply 21 at offset 256
+reverse replies, thread isolation, full slots and reuse passed
+RUN 5.1 build/thread_cancel_test
+one shared-file call cancelled; other reply and slot reuse passed
+RUN 5.1 build/server_mapping_isolation_test
+server request and outgoing reply occupy separate mapping regions
+DEMO 5.1 thread_reply_test
+thread input 10: reply 11 at offset 0
+thread input 20: reply 21 at offset 256
+reverse replies and thread isolation passed
+
+Chapter 5.2
+RUN 5.2 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 5.2 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 5.2 build/local_transfer_test
+local Node -> receiver Ref 1 -> original object: 77
+RUN 5.2 build/multi_server_test
+two servers: routing and exit isolation passed
+RUN 5.2 build/thread_test
+one proc, distinct thread records; dup shares proc passed
+RUN 5.2 build/concurrent_test
+two slots, distinct user addresses, reverse replies, full capacity and reuse passed
+RUN 5.2 build/server_death
+server death wakes both clients with EPIPE
+RUN 5.2 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 5.2 build/pending_cancel_test
+pending cancellation removes work and next request succeeds
+RUN 5.2 build/workers_test
+two server threads receive separate queued requests
+RUN 5.2 build/return_to_owner_test
+reply Ref -> owner local object: 42
+request Ref -> owner local object: 42
+RUN 5.2 build/thread_reply_test
+thread 2: transaction 27, 10 -> 11, offset 256
+thread 1: transaction 26, 20 -> 21, offset 0
+reverse replies, thread isolation, full slots and reuse passed
+RUN 5.2 build/thread_cancel_test
+one shared-file call cancelled; other reply and slot reuse passed
+RUN 5.2 build/server_mapping_isolation_test
+server request and outgoing reply occupy separate mapping regions
+RUN 5.2 build/target_wakeup_test
+reply id=35 -> binder thread=2: target wake events 1; other wake events 0
+reply id=34 -> binder thread=1
+both threads received their own replies
+DEMO 5.2 thread_reply_test
+thread 1: transaction 36, 10 -> 11, offset 0
+thread 2: transaction 37, 20 -> 21, offset 256
+reverse replies and thread isolation passed
+
+Chapter 5.3
+RUN 5.3 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 5.3 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 5.3 build/local_transfer_test
+local Node -> receiver Ref 1 -> original object: 77
+RUN 5.3 build/multi_server_test
+two servers: routing and exit isolation passed
+RUN 5.3 build/thread_test
+one proc, distinct thread records; dup shares proc passed
+RUN 5.3 build/concurrent_test
+two slots, distinct user addresses, reverse replies, full capacity and reuse passed
+RUN 5.3 build/server_death
+server death wakes both clients with EPIPE
+RUN 5.3 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 5.3 build/pending_cancel_test
+pending cancellation removes work and next request succeeds
+RUN 5.3 build/workers_test
+two server threads receive separate queued requests
+RUN 5.3 build/return_to_owner_test
+reply Ref -> owner local object: 42
+request Ref -> owner local object: 42
+RUN 5.3 build/thread_reply_test
+thread 1: transaction 26, 10 -> 11, offset 0
+thread 2: transaction 27, 20 -> 21, offset 256
+reverse replies, thread isolation, full slots and reuse passed
+RUN 5.3 build/thread_cancel_test
+one shared-file call cancelled; other reply and slot reuse passed
+RUN 5.3 build/server_mapping_isolation_test
+server request and outgoing reply occupy separate mapping regions
+RUN 5.3 build/thread_exit_test
+12 exited threads reused record; reply offset 0 reused
+explicit thread exit and reply cleanup passed
+DEMO 5.3 thread_exit_test
+exited thread released reply offset 0; next caller reused it
+explicit thread exit and reply cleanup passed
+
+Chapter 5.4
+RUN 5.4 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 5.4 build/role_test
+ordinary client passed a local object and handled its call: twice(7) = 14
+RUN 5.4 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 5.4 build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 5.4 build/thread_reply_test
+thread 2: transaction 11, 10 -> 11, offset 768
+thread 1: transaction 10, 20 -> 21, offset 512
+reverse replies, thread isolation, full slots and reuse passed
+RUN 5.4 build/thread_cancel_test
+one shared-file call cancelled; other reply and slot reuse passed
+RUN 5.4 build/pending_cancel_test
+pending cancellation removes work and next request succeeds
+RUN 5.4 build/server_death
+server death wakes both clients with EPIPE
+RUN 5.4 build/stale_reply
+cancelled reply discarded; next client received correct result
+
+Chapter 6.2
+RUN 6.2 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 6.2 build/role_test
+ordinary client passed a local object and handled its call: twice(7) = 14
+RUN 6.2 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 6.2 build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 6.2 build/thread_reply_test
+thread 2: transaction 11, 10 -> 11, offset 768
+thread 1: transaction 10, 20 -> 21, offset 512
+reverse replies, thread isolation, full slots and reuse passed
+RUN 6.2 build/thread_cancel_test
+one shared-file call cancelled; other reply and slot reuse passed
+RUN 6.2 build/pending_cancel_test
+pending cancellation removes work and next request succeeds
+RUN 6.2 build/server_death
+server death wakes both clients with EPIPE
+RUN 6.2 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 6.2 build/mixed_object_test
+sender fd 3 -> receiver fd 4; binder handle 1
+receiver read after sender closed: data
+RUN 6.2 build/fd_request_demo
+receiver fd 4 read: data
+request fd delivered
+
+Chapter 6.3
+RUN 6.3 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 6.3 build/role_test
+ordinary client passed a local object and handled its call: twice(7) = 14
+RUN 6.3 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 6.3 build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 6.3 build/thread_reply_test
+thread 2: transaction 11, 10 -> 11, offset 768
+thread 1: transaction 10, 20 -> 21, offset 512
+reverse replies, thread isolation, full slots and reuse passed
+RUN 6.3 build/thread_cancel_test
+one shared-file call cancelled; other reply and slot reuse passed
+RUN 6.3 build/pending_cancel_test
+pending cancellation removes work and next request succeeds
+RUN 6.3 build/server_death
+server death wakes both clients with EPIPE
+RUN 6.3 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 6.3 build/mixed_object_test
+sender fd 3 -> receiver fd 4; binder handle 1
+receiver read after sender closed: data
+RUN 6.3 build/fd_failure_test
+receiver: one free fd=63, request contains two fd objects
+receiver: READ returned EMFILE; second reservation failed
+receiver: open reused fd=63; first reservation rolled back
+sender: WRITE returned EPIPE; delivery failed
+sender: both pipes reached EOF; driver holds no write-end references
+invalid fd, queued cancellation and receiver death released file references
+fd-table exhaustion and copy failure rolled back reserved descriptors
+
+Chapter 6.4
+RUN 6.4 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 6.4 build/role_test
+ordinary client passed a local object and handled its call: twice(7) = 14
+RUN 6.4 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 6.4 build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 6.4 build/thread_reply_test
+thread 2: transaction 11, 10 -> 11, offset 768
+thread 1: transaction 10, 20 -> 21, offset 512
+reverse replies, thread isolation, full slots and reuse passed
+RUN 6.4 build/thread_cancel_test
+one shared-file call cancelled; other reply and slot reuse passed
+RUN 6.4 build/pending_cancel_test
+pending cancellation removes work and next request succeeds
+RUN 6.4 build/server_death
+server death wakes both clients with EPIPE
+RUN 6.4 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 6.4 build/mixed_object_test
+sender fd 3 -> receiver fd 4; binder handle 1
+receiver read after sender closed: data
+RUN 6.4 build/fd_failure_test
+invalid fd, queued cancellation and receiver death released file references
+fd-table exhaustion and copy failure rolled back reserved descriptors
+RUN 6.4 build/fd_reply_test
+reply fds 62 and 63 after EFAULT and EMFILE retries: data
+unread fd replies released by thread exit, free and file close
+subsequent transaction returned 55
+RUN 6.4 build/fd_reply_demo
+reply fd 4 read: data
+
+Chapter 7.1
+RUN 7.1 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 7.1 build/object_demo
+GET_OBJECT 1: LOCAL(cookie=77) -> client handle 1
+GET_OBJECT 2: LOCAL(cookie=77) -> client handle 1
+handle 1: sub(7, 3) = 4
+same local object reused; handle call passed
+RUN 7.1 build/protocol_test
+failed translations rolled back; eight Nodes fit; repeated objects reuse handles
+handle returned to owner as LOCAL; reply reused original handle
+request/reply fds, EFAULT and EMFILE retry passed
+RUN 7.1 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 7.1 build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 7.1 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 7.1 build/server_death
+server death wakes both clients with EPIPE
+
+Chapter 7.2
+RUN 7.2 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 7.2 build/object_demo
+GET_OBJECT 1: LOCAL(cookie=77) -> client handle 1
+GET_OBJECT 2: LOCAL(cookie=77) -> client handle 1
+handle 1: sub(7, 3) = 4
+same local object reused; handle call passed
+RUN 7.2 build/protocol_test
+failed translations rolled back; eight Nodes fit; repeated objects reuse handles
+handle returned to owner as LOCAL; reply reused original handle
+request/reply fds, EFAULT and EMFILE retry passed
+RUN 7.2 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 7.2 build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 7.2 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 7.2 build/server_death
+server death wakes both clients with EPIPE
+
+Chapter 7.3
+RUN 7.3 build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 7.3 build/object_demo
+GET_OBJECT 1: LOCAL(cookie=77) -> client handle 1
+GET_OBJECT 2: LOCAL(cookie=77) -> client handle 1
+handle 1: sub(7, 3) = 4
+same local object reused; handle call passed
+RUN 7.3 build/protocol_test
+failed translations rolled back; eight Nodes fit; repeated objects reuse handles
+handle returned to owner as LOCAL; reply reused original handle
+request/reply fds, EFAULT and EMFILE retry passed
+RUN 7.3 build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 7.3 build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 7.3 build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 7.3 build/server_death
+server death wakes both clients with EPIPE
+RUN 7.3 build/looper_test
+ordinary caller: unified READ returned BR_REPLY without entering looper
+ordinary reader: did not steal queued request or another thread's reply
+looper READ 1: BR_REPLY, result=11 (own reply has priority)
+looper READ 2: BR_TRANSACTION, cookie=77
+ENTER/EXIT checks, interrupted READ and unmap wakeup passed
+RUN 7.3 build/looper_demo
+ordinary READ: BR_REPLY, result=11
+BC_ENTER_LOOPER: current thread can receive process requests
+same READ: BR_TRANSACTION, cookie=77
+BC_REPLY: reverse caller received 22; BC_EXIT_LOOPER completed
+
+Fresh-module main experiments (version queried before each run)
+
+Chapter 4.2
+mini-binder protocol version: 0402
+manager: handle 0 ready
+provider: calculator registered with manager
+client: get calculator through handle 0 -> local handle 1
+client: call handle 1 -> result 42
+service calculator: registered, found and called (result 42)
+
+Chapter 4.3
+mini-binder protocol version: 0403
+proc A: main thread 1, workers 3 and 2
+dup A: thread 1; proc B: thread 1
+one proc, distinct thread records; dup shares proc passed
+
+Chapter 5.1
+mini-binder protocol version: 0501
+thread input 10: reply 11 at offset 0
+thread input 20: reply 21 at offset 256
+reverse replies and thread isolation passed
+
+Chapter 5.2
+mini-binder protocol version: 0502
+thread 1: transaction 1, 10 -> 11, offset 0
+thread 2: transaction 2, 20 -> 21, offset 256
+reverse replies and thread isolation passed
+
+Chapter 5.3
+mini-binder protocol version: 0503
+exited thread released reply offset 0; next caller reused it
+explicit thread exit and reply cleanup passed
+
+Chapter 6.3
+mini-binder protocol version: 0603
+receiver: one free fd=63, request contains two fd objects
+receiver: READ returned EMFILE; second reservation failed
+receiver: open reused fd=63; first reservation rolled back
+sender: WRITE returned EPIPE; delivery failed
+sender: both pipes reached EOF; driver holds no write-end references
+two-fd reservation rollback passed

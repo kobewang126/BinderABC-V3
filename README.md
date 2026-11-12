@@ -4,6 +4,15 @@
 
 这是第三版教程，保留逐步设计和独立章节实验；第 2.3 至 2.5 章沿用同一事务结构，并在需要时启用操作码。
 
+## 怎样阅读
+
+主线是：跨进程调用 → 参数传输与存放 → 对象与引用 → 上下文与线程 → fd 传递 → 协议收敛。每章集中解决一个新问题；结构整理和生命周期章节不一定新增对外功能。
+
+首次搭建环境时，先完成 [0.4 环境检查](docs/00-preparation/0.4-kernel-environment.md)，再运行 0.3 的模块实验。章节编号保留不变。
+
+- [各章学习目标与最小实验](docs/appendices/reading-guide.md)：先预测结果、运行主实验，再阅读关键调用链；额外回归最后做。
+- [教学接口的演进与退出点](docs/appendices/protocol-evolution.md)：说明哪些接口只是中间步骤，何时替换，避免把教学简化当作 Android 最终设计。
+
 ## 阅读目录
 
 ### 0 预备篇
@@ -28,7 +37,7 @@
 - [第 2.2 章 从普通数据到 Parcel](docs/02-transaction/2.2-parcel.md)
 - [第 2.3 章 让 Parcel 通过驱动传输](docs/02-transaction/2.3-transaction.md)
 - [第 2.4 章 让客户端从映射区读取回复](docs/02-transaction/2.4-client-mmap.md)
-- [第 2.5 章 用事务命令选择服务函数](docs/02-transaction/2.5-command-dispatch.md)
+- [第 2.5 章 用 code 选择服务方法](docs/02-transaction/2.5-command-dispatch.md)
 - [第 2.6 章 使用 BC 和 BR 命令](docs/02-transaction/2.6-bc-br.md)
 - [第 2.7 章 多笔事务与用户地址](docs/02-transaction/2.7-concurrent-transactions.md)
 - [第二篇自测](docs/appendices/2-review.md)
@@ -51,6 +60,8 @@
 
 ### 4 第四篇：进程、服务发现与线程
 
+本篇有三条相连的线：4.1 整理对象所属的上下文，4.2 解决首次服务发现，4.3～4.4 建立线程领取请求的模型。4.5 则补全第三篇的对象转换：引用回到拥有者时恢复为本地对象；它不是线程调度的新阶段。
+
 - [第 4.1 章 一个 Binder 上下文有哪些对象？](docs/04-concurrency/4.1-binder-proc.md)
 - [第 4.2 章 从哪里找到服务？](docs/04-concurrency/4.2-service-manager.md)
 - [第 4.3 章 一个 Binder 上下文中的多个线程](docs/04-concurrency/4.3-binder-thread.md)
@@ -61,6 +72,8 @@
 第三、四篇先运行各章正文中的主实验；额外测试源码保留在对应 `examples/<章号>/tests/` 中。
 
 ### 5 第五篇：线程与同步调用
+
+5.1～5.3 依次解决回复隔离、定向交付和显式线程清理；5.4 再撤掉固定的客户端/服务端角色，检验同一上下文是否能够双向提供对象。不引入等待中的嵌套调用。
 
 - [第 5.1 章 同一个 Binder 上下文中的两个调用线程](docs/05-threading/5.1-thread-replies.md)
 - [第 5.2 章 把回复交给发起调用的线程](docs/05-threading/5.2-thread-todo.md)
@@ -81,7 +94,7 @@
 - [第 7.1 章 第一次传递本地对象时创建 Node](docs/07-protocol/7.1-auto-node.md)
 - [第 7.2 章 只用 handle 寻址服务对象](docs/07-protocol/7.2-handle-routing.md)
 - [第 7.3 章 进入 looper，用同一个 READ 接收事件](docs/07-protocol/7.3-looper-events.md)
-- [第 7.4 章 统一 WRITE_READ，完成服务注册、获取与调用](docs/07-protocol/7.4-write-read.md)
+- [第 7.4 章 统一通信入口，完成一次服务调用](docs/07-protocol/7.4-write-read.md)
 - [第七篇自测](docs/appendices/7-review.md)
 
 本篇编写至 7.4：自动创建 Node、统一 handle 寻址与事件读取，最终用 WRITE_READ 串起三个独立程序的注册、查询与调用。每方向仍只交换一个命令包，不宣称与 AOSP 协议二进制兼容。
@@ -89,3 +102,5 @@
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
 各章的实际验证环境和覆盖范围以对应正文为准。第四篇 4.1 至 4.5 已在 Ubuntu 24.04 ARM64、Linux 6.8.0-147 上编译并运行对应实验。
+
+本轮教材衔接调整的范围、实际运行输出和未覆盖边界见[验证记录](validation/README.md)。维护源码后可运行 `python3 tools/check_tutorial.py`，独立检查章节片段、行号与本地链接，无需生成网页。

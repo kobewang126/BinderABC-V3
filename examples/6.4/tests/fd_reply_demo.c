@@ -9,11 +9,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <parcel_binding.h>
 
-static void put32(unsigned char *p, uint32_t n)
-{ for (int i = 0; i < 4; i++) p[i] = (unsigned char)(n >> (8 * i)); }
-static uint32_t get32(const unsigned char *p)
-{ return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
 static void *map(int fd)
 {
     void *p = mmap(NULL, (size_t)sysconf(_SC_PAGESIZE), PROT_READ, MAP_SHARED, fd, 0);
@@ -32,9 +29,11 @@ static void server(int ready, int finish)
     assert(write(ready, &node.node_id, sizeof(node.node_id)) == sizeof(node.node_id)); close(ready);
     assert(ioctl(binder, MINI_BINDER_READ, &req) == 0);
     assert(pipe(data) == 0 && write(data[1], "data", 4) == 4); close(data[1]);
-    reply.transaction.id = req.transaction.id; reply.transaction.size = 12; reply.transaction.object_count = 1;
-    put32(reply.transaction.data, MINI_BINDER_OBJECT_FD);
-    put32(reply.transaction.data + 4, (uint32_t)data[0]);
+    struct object_parcel response;
+    object_parcel_init(&response, reply.transaction.data, sizeof(reply.transaction.data));
+    assert(object_parcel_write(&response, OBJECT_PARCEL_FD, (uint32_t)data[0]) == 0);
+    parcel_to_transaction(&reply.transaction, &response);
+    reply.transaction.id = req.transaction.id;
     assert(ioctl(binder, MINI_BINDER_WRITE, &reply) == 0); close(data[0]);
     assert(read(finish, &token, 1) == 1); close(finish);
     munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(binder); _exit(0);
@@ -58,8 +57,12 @@ int main(void)
     assert(ioctl(binder, MINI_BINDER_WRITE, &call) == 0);
     assert(ioctl(binder, MINI_BINDER_READ, &reply) == 0);
     payload = mapping + reply.transaction.reply_offset;
-    assert(reply.transaction.object_count == 1 && get32(payload) == MINI_BINDER_OBJECT_FD);
-    received = (int)get32(payload + 4);
+    struct object_parcel response;
+    struct parcel_object object;
+    assert(parcel_from_transaction(&response, &reply.transaction, payload) == 0);
+    assert(response.count == 1 && object_parcel_read_next(&response, &object) == 0);
+    assert(object.type == OBJECT_PARCEL_FD);
+    received = (int)object.value;
     assert(read(received, data, sizeof(data)) == sizeof(data)); close(received);
     assert(ioctl(binder, MINI_BINDER_WRITE, &release) == 0);
     assert(write(finish[1], "x", 1) == 1); close(finish[1]);

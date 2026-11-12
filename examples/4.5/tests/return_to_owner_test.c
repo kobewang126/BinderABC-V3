@@ -9,15 +9,35 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <parcel_binding.h>
 
-static void put32(unsigned char *p, uint32_t value)
-{ for (int i = 0; i < 4; i++) p[i] = (unsigned char)(value >> (8 * i)); }
-static uint32_t get32(const unsigned char *p)
-{ return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
-static uint64_t get64(const unsigned char *p)
-{ return get32(p) | (uint64_t)get32(p + 4) << 32; }
-static void put_object(unsigned char *p, uint32_t type, uint64_t value)
-{ put32(p, type); put32(p + 4, (uint32_t)value); put32(p + 8, (uint32_t)(value >> 32)); }
+static uint32_t get32(const unsigned char *data)
+{
+    struct parcel p; uint32_t value;
+    parcel_init(&p, (void *)data, 4); p.size = 4;
+    assert(parcel_read_u32(&p, &value) == 0); return value;
+}
+static void put32(unsigned char *data, uint32_t value)
+{
+    struct parcel p; parcel_init(&p, data, 4);
+    assert(parcel_write_u32(&p, value) == 0);
+}
+static struct parcel_object read_object(const struct mini_binder_transaction_data *tx,
+                                        const void *data)
+{
+    struct object_parcel p;
+    struct parcel_object object;
+    assert(parcel_from_transaction(&p, tx, data) == 0 && p.count == 1);
+    assert(object_parcel_read_next(&p, &object) == 0);
+    return object;
+}
+static void write_object(struct mini_binder_transaction_data *tx, uint32_t type, uint64_t value)
+{
+    struct object_parcel p;
+    object_parcel_init(&p, tx->data, sizeof(tx->data));
+    assert(object_parcel_write(&p, type, value) == 0);
+    parcel_to_transaction(tx, &p);
+}
 static void *map(int fd)
 {
     void *p = mmap(NULL, (size_t)sysconf(_SC_PAGESIZE), PROT_READ, MAP_SHARED, fd, 0);
@@ -51,19 +71,20 @@ static void peer(int send_id, int receive_id)
     close(receive_id);
     assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
     payload = (const unsigned char *)(uintptr_t)req.transaction.data_address;
-    assert(req.transaction.object_count == 1 && get32(payload) == MINI_BINDER_OBJECT_HANDLE);
-    handle = get32(payload + 4);
+    struct parcel_object received = read_object(&req.transaction, payload);
+    assert(received.type == OBJECT_PARCEL_HANDLE);
+    handle = (uint32_t)received.value;
     assert(handle == 1);
     reply.transaction.id = req.transaction.id;
     reply.transaction.size = 12;
     reply.transaction.object_count = 1;
-    put_object(reply.transaction.data, MINI_BINDER_OBJECT_HANDLE, handle);
+    write_object(&reply.transaction, MINI_BINDER_OBJECT_HANDLE, handle);
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
 
     call.transaction.target_node = owner_node;
     call.transaction.size = 12;
     call.transaction.object_count = 1;
-    put_object(call.transaction.data, MINI_BINDER_OBJECT_HANDLE, handle);
+    write_object(&call.transaction, MINI_BINDER_OBJECT_HANDLE, handle);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
     assert(ioctl(fd, MINI_BINDER_READ, &result) == 0);
     assert(result.transaction.size == 4 && get32(mapping) == 42);
@@ -97,20 +118,20 @@ int main(void)
     call.transaction.target_node = peer_node;
     call.transaction.size = 12;
     call.transaction.object_count = 1;
-    put_object(call.transaction.data, MINI_BINDER_OBJECT_LOCAL, cookie);
+    write_object(&call.transaction, MINI_BINDER_OBJECT_LOCAL, cookie);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
     assert(ioctl(fd, MINI_BINDER_READ, &result) == 0);
-    assert(result.transaction.object_count == 1 && get32(mapping) == MINI_BINDER_OBJECT_LOCAL);
-    assert(get64(mapping + 4) == cookie);
-    returned = (const struct service_object *)(uintptr_t)get64(mapping + 4);
+    struct parcel_object received = read_object(&result.transaction, mapping);
+    assert(received.type == OBJECT_PARCEL_LOCAL && received.value == cookie);
+    returned = (const struct service_object *)(uintptr_t)received.value;
     assert(returned->invoke(21) == 42);
     free_reply(fd);
 
     assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
     payload = (const unsigned char *)(uintptr_t)req.transaction.data_address;
-    assert(req.transaction.object_count == 1 && get32(payload) == MINI_BINDER_OBJECT_LOCAL);
-    assert(get64(payload + 4) == cookie);
-    returned = (const struct service_object *)(uintptr_t)get64(payload + 4);
+    received = read_object(&req.transaction, payload);
+    assert(received.type == OBJECT_PARCEL_LOCAL && received.value == cookie);
+    returned = (const struct service_object *)(uintptr_t)received.value;
     reply.transaction.id = req.transaction.id;
     reply.transaction.size = 4;
     put32(reply.transaction.data, (uint32_t)returned->invoke(21));

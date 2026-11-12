@@ -9,11 +9,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <parcel_binding.h>
 
-static void put32(unsigned char *p, uint32_t n)
-{ for (int i = 0; i < 4; i++) p[i] = (unsigned char)(n >> (8 * i)); }
-static uint32_t get32(const unsigned char *p)
-{ return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
 static void *map(int fd)
 {
     void *p = mmap(NULL, (size_t)sysconf(_SC_PAGESIZE), PROT_READ, MAP_SHARED, fd, 0);
@@ -34,8 +31,12 @@ static void receiver(int ready, int finish)
     close(ready);
     assert(ioctl(binder, MINI_BINDER_READ, &req) == 0);
     payload = (const unsigned char *)(uintptr_t)req.transaction.data_address;
-    assert(req.transaction.object_count == 1 && get32(payload) == MINI_BINDER_OBJECT_FD);
-    received = (int)get32(payload + 4);
+    struct object_parcel request;
+    struct parcel_object object;
+    assert(parcel_from_transaction(&request, &req.transaction, payload) == 0);
+    assert(request.count == 1 && object_parcel_read_next(&request, &object) == 0);
+    assert(object.type == OBJECT_PARCEL_FD);
+    received = (int)object.value;
     assert(read(received, data, sizeof(data)) == sizeof(data));
     close(received);
     printf("receiver fd %d read: %.*s\n", received, 4, data);
@@ -61,9 +62,11 @@ int main(void)
     assert(read(ready[0], &target, sizeof(target)) == sizeof(target)); close(ready[0]);
     assert(pipe(data) == 0 && write(data[1], "data", 4) == 4); close(data[1]);
     binder = open("/dev/mini_binder", O_RDWR); assert(binder >= 0); mapping = map(binder);
-    call.transaction.target_node = target; call.transaction.size = 12; call.transaction.object_count = 1;
-    put32(call.transaction.data, MINI_BINDER_OBJECT_FD);
-    put32(call.transaction.data + 4, (uint32_t)data[0]);
+    struct object_parcel request;
+    object_parcel_init(&request, call.transaction.data, sizeof(call.transaction.data));
+    assert(object_parcel_write(&request, OBJECT_PARCEL_FD, (uint32_t)data[0]) == 0);
+    parcel_to_transaction(&call.transaction, &request);
+    call.transaction.target_node = target;
     assert(ioctl(binder, MINI_BINDER_WRITE, &call) == 0);
     assert(ioctl(binder, MINI_BINDER_READ, &reply) == 0);
     assert(ioctl(binder, MINI_BINDER_WRITE, &release) == 0);

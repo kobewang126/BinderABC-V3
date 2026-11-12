@@ -11,8 +11,9 @@ static void serve(int ready, int finish)
     assert(write(ready, "R", 1) == 1); close(ready);
     read_request(fd, &event);
     const unsigned char *data = (const unsigned char *)(uintptr_t)event.transaction.data_address;
-    assert(get32(data) == MINI_BINDER_OBJECT_HANDLE);
-    uint32_t callback = get32(data + 4);
+    struct parcel_object received = read_object(&event.transaction, data);
+    assert(received.type == OBJECT_PARCEL_HANDLE);
+    uint32_t callback = (uint32_t)received.value;
     reply.transaction.id = event.transaction.id;
     reply.transaction.size = 4; put32(reply.transaction.data, 11);
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
