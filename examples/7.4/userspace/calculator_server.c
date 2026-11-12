@@ -14,7 +14,7 @@ int main(void)
     assert(parcel_write_string(&registration.bytes, CALCULATOR_NAME, strlen(CALCULATOR_NAME)) == 0);
     assert(object_parcel_write(&registration, OBJECT_PARCEL_LOCAL, CALCULATOR_COOKIE) == 0);
     parcel_to_transaction(&call.transaction, &registration);
-    call_service(fd, &call, &event);
+    assert(command_io(fd, &call, &event) == 0 && event.cmd == MINI_BR_REPLY);
     if (event.transaction.status) {
         fprintf(stderr, "addService failed: %d\n", event.transaction.status);
         free_reply(fd); unmap_close(fd, mapping); return 1;

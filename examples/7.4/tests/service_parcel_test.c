@@ -12,11 +12,11 @@ int main(void)
     object_parcel_init(&request, call.transaction.data, sizeof(call.transaction.data));
     assert(parcel_write_u32(&request.bytes, 33) == 0); /* Truncated service name. */
     parcel_to_transaction(&call.transaction, &request); call.transaction.code = SM_GET_SERVICE;
-    call_service(fd, &call, &event); assert(event.transaction.status == -EINVAL); free_reply(fd);
+    assert(command_io(fd, &call, &event) == 0 && event.cmd == MINI_BR_REPLY); assert(event.transaction.status == -EINVAL); free_reply(fd);
     memset(&call, 0, sizeof(call)); call.cmd = MINI_BC_TRANSACTION; call.transaction.code = SM_GET_SERVICE;
     object_parcel_init(&request, call.transaction.data, sizeof(call.transaction.data));
     assert(parcel_write_string(&request.bytes, CALCULATOR_NAME, strlen(CALCULATOR_NAME)) == 0);
-    parcel_to_transaction(&call.transaction, &request); call_service(fd, &call, &event);
+    parcel_to_transaction(&call.transaction, &request); assert(command_io(fd, &call, &event) == 0 && event.cmd == MINI_BR_REPLY);
     assert(!event.transaction.status && parcel_from_transaction(&reply, &event.transaction,
            mapping + event.transaction.reply_offset) == 0);
     assert(object_parcel_read_next(&reply, &object) == 0 && object.type == OBJECT_PARCEL_HANDLE);
@@ -26,7 +26,7 @@ int main(void)
         call.transaction.target_handle = handle; call.transaction.code = CALCULATOR_ADD;
         object_parcel_init(&request, call.transaction.data, sizeof(call.transaction.data));
         for (unsigned int i = 0; i < count; i++) assert(parcel_write_u32(&request.bytes, i + 1) == 0);
-        parcel_to_transaction(&call.transaction, &request); call_service(fd, &call, &event);
+        parcel_to_transaction(&call.transaction, &request); assert(command_io(fd, &call, &event) == 0 && event.cmd == MINI_BR_REPLY);
         assert(event.transaction.status == (count == 2 ? 0 : -EINVAL));
         if (count == 2) {
             uint32_t result;

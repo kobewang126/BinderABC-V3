@@ -14,7 +14,7 @@ int main(int argc, char **argv)
     object_parcel_init(&request, call.transaction.data, sizeof(call.transaction.data));
     assert(parcel_write_string(&request.bytes, name, strlen(name)) == 0);
     parcel_to_transaction(&call.transaction, &request);
-    call_service(fd, &call, &event);
+    assert(command_io(fd, &call, &event) == 0 && event.cmd == MINI_BR_REPLY);
     if (event.transaction.status) {
         fprintf(stderr, "getService(%s): %d\n", name, event.transaction.status);
         free_reply(fd); unmap_close(fd, mapping); return 1;
@@ -30,7 +30,7 @@ int main(int argc, char **argv)
         object_parcel_init(&request, call.transaction.data, sizeof(call.transaction.data));
         assert(parcel_write_u32(&request.bytes, 7) == 0 && parcel_write_u32(&request.bytes, 3) == 0);
         parcel_to_transaction(&call.transaction, &request);
-        call_service(fd, &call, &event);
+        assert(command_io(fd, &call, &event) == 0 && event.cmd == MINI_BR_REPLY);
         assert(event.transaction.status == 0 && parcel_from_transaction(&reply, &event.transaction,
                mapping + event.transaction.reply_offset) == 0 && !reply.count);
         uint32_t result;

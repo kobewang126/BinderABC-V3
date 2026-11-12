@@ -52,11 +52,4 @@ static inline int open_binder(unsigned char **mapping)
     if (fd < 0) { perror("open /dev/mini_binder"); exit(1); }
     *mapping = map_buffer(fd); return fd;
 }
-static inline void call_service(int fd, struct mini_binder_command *call,
-                                struct mini_binder_command *event)
-{
-    /* This demo uses ordinary callers: no nested calls or callback dispatch here. */
-    assert(command_io(fd, call, event) == 0);
-    assert(event->cmd == MINI_BR_REPLY);
-}
 #endif
