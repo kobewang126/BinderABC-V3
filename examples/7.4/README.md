@@ -32,9 +32,17 @@ python3 tests/service_flow.py
 
 测试还检查未注册名称、多次查询与调用，以及重复注册拒绝。脚本通过子进程日志确认就绪，不使用固定启动延迟；退出时清理自己的子进程。它需要 Python 3，请勿与手动启动的管理者同时运行。
 
+## 复用前章 Parcel
+
+主实验复用 2.2 的 parcel.h/parcel.c 和 3.3 的 object_parcel.h/object_parcel.c，并适配 FD 类型与顺序对象读取。服务名通过 parcel_write_string/parcel_read_string，整数通过 parcel_write_u32/parcel_read_u32，本地对象和引用通过 object_parcel_write/object_parcel_read_next 编解码。service.h 负责将数据长度与对象位置绑定到当前事务结构。驱动、协议版本和已有线格式不变。
+
+接收方 Parcel 直接借用映射数据，使用期间只能读，服务端应在回复前完成读取，客户端应在 FREE_REPLY 前完成读取；Parcel 不负责保持映射有效。输入视图当前依靠调用约定只读，尚没有编译期 const 隔离。FD 描述编解码不执行 fd_install，也不会替应用关闭收到的 fd。统一对象回调与代理仍留待后续封装。
+
 ## 补充回归
 
 ```sh
+./build/parcel_test
+./build/parcel_binding_test
 ./build/write_read_test
 ./build/thread_reply_test
 ./build/object_demo
@@ -48,6 +56,9 @@ python3 tests/service_flow.py
 sudo rmmod mini_binder
 ```
 
+- parcel_test：沿用前章基础整数、字符串和容量边界实验。
+- parcel_binding_test：名称加对象的旧线格式兼容、顺序读对象、HANDLE/FD、对象位置/长度/高位边界、失败写入回滚；纯编解码，不传递真实 fd。
+- service_parcel_test：由 service_flow.py 在真实服务运行期间调用，验证截断服务名、缺失和多余计算参数，以及正常请求恢复。
 - write_read_test：只写在服务端领取前返回；读失败重试保留提交进度；无效参数与只读控制块；删除的旧 ioctl 被拒绝；客户端关闭时回收待领取请求、拒绝已领取请求的迟到回复；显式线程退出取消；成功回复在服务端关闭后仍可领取。
 - thread_reply_test：同一打开文件的两个调用线程、倒序回复、各自映射位置与错误后重试、槽位耗尽与复用。
 - object_demo、protocol_test：自动 Node 创建/复用、失败回滚、容量、对象返回 owner，以及双向 fd、EFAULT/EMFILE 读取重试。
@@ -66,3 +77,5 @@ MINI_BINDER_WRITE_READ 是唯一命令交换 ioctl，每个方向为 0 或一个
 2026-11-12，在 binder-lab 的 Ubuntu 24.04 ARM64、Linux 6.8.0-147-generic 中构建、加载并运行 version、service_flow.py、write_read_test、thread_reply_test 和以上其余全部回归，最终卸载成功。service_flow（包含两个并发客户端）、共享文件线程回复各额外连续五轮通过；write_read、protocol、looper、取消旧回复回归也各额外五轮通过。编译器名称与内核构建记录不同、缺少 vmlinux 的 BTF 提示不影响已验证的编译与加载。
 
 未进行性能测试，未穷尽控制块与映射并发变化、请求领取失败、多个取消和 fd 耗尽等所有交错。固定表与槽位仍可能耗尽；成功执行的方法不能因用户态没收到确认就假定未执行。
+
+Parcel 接入后再次在相同环境构建并运行以上全部实验；三进程主流程、两个并发客户端、真实截断/尾部参数拒绝与恢复、基础 Parcel 和对象绑定测试通过，最终模块卸载。新增测试属于编解码和集成验证，不扩大此前未覆盖并发组合的声明。

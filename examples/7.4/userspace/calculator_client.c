@@ -8,23 +8,33 @@ int main(int argc, char **argv)
     int fd = open_binder(&mapping);
     const char *name = argc == 2 ? argv[1] : CALCULATOR_NAME;
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION}, event;
-    call.transaction.code = SM_GET_SERVICE; put_name(&call.transaction, name);
+    struct object_parcel request, reply;
+    struct parcel_object object;
+    call.transaction.code = SM_GET_SERVICE;
+    object_parcel_init(&request, call.transaction.data, sizeof(call.transaction.data));
+    assert(parcel_write_string(&request.bytes, name, strlen(name)) == 0);
+    parcel_to_transaction(&call.transaction, &request);
     call_service(fd, &call, &event);
     if (event.transaction.status) {
         fprintf(stderr, "getService(%s): %d\n", name, event.transaction.status);
         free_reply(fd); unmap_close(fd, mapping); return 1;
     }
-    const unsigned char *data = mapping + event.transaction.reply_offset;
-    assert(event.transaction.object_count == 1 && get32(data) == MINI_BINDER_OBJECT_HANDLE);
-    uint32_t handle = get32(data + 4); free_reply(fd);
+    assert(parcel_from_transaction(&reply, &event.transaction, mapping + event.transaction.reply_offset) == 0);
+    assert(reply.count == 1 && object_parcel_read_next(&reply, &object) == 0 &&
+           object.type == OBJECT_PARCEL_HANDLE && reply.bytes.position == reply.bytes.size);
+    uint32_t handle = (uint32_t)object.value; free_reply(fd);
     printf("getService(%s): client handle=%u\n", name, handle);
     for (unsigned int code = CALCULATOR_ADD; code <= CALCULATOR_SUBTRACT; code++) {
         memset(&call, 0, sizeof(call)); call.cmd = MINI_BC_TRANSACTION;
         call.transaction.target_handle = handle; call.transaction.code = code;
-        call.transaction.size = 8; put32(call.transaction.data, 7); put32(call.transaction.data + 4, 3);
+        object_parcel_init(&request, call.transaction.data, sizeof(call.transaction.data));
+        assert(parcel_write_u32(&request.bytes, 7) == 0 && parcel_write_u32(&request.bytes, 3) == 0);
+        parcel_to_transaction(&call.transaction, &request);
         call_service(fd, &call, &event);
-        assert(event.transaction.status == 0 && event.transaction.size == 4);
-        uint32_t result = get32(mapping + event.transaction.reply_offset);
+        assert(event.transaction.status == 0 && parcel_from_transaction(&reply, &event.transaction,
+               mapping + event.transaction.reply_offset) == 0 && !reply.count);
+        uint32_t result;
+        assert(parcel_read_u32(&reply.bytes, &result) == 0 && reply.bytes.position == reply.bytes.size);
         assert(result == (code == CALCULATOR_ADD ? 10U : 4U));
         printf("remote %s(7, 3) = %u\n", code == CALCULATOR_ADD ? "add" : "sub", result);
         free_reply(fd);

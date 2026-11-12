@@ -44,6 +44,10 @@ try:
         stdout, _ = caller.communicate(timeout=10)
         assert caller.returncode == 0 and 'remote add(7, 3) = 10' in stdout and 'remote sub(7, 3) = 4' in stdout
     print('two concurrent clients received their own results')
+    parcel_checks = subprocess.run([str(ROOT / 'build/service_parcel_test')], capture_output=True,
+                                  text=True, timeout=10)
+    assert parcel_checks.returncode == 0, (parcel_checks.stdout, parcel_checks.stderr)
+    print(parcel_checks.stdout.strip())
     duplicate = subprocess.run([str(ROOT / 'build/calculator_server')], capture_output=True,
                                text=True, timeout=10)
     assert duplicate.returncode == 1 and 'addService failed: -17' in duplicate.stderr
