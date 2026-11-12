@@ -81,9 +81,10 @@
 - [第 7.1 章 第一次传递本地对象时创建 Node](docs/07-protocol/7.1-auto-node.md)
 - [第 7.2 章 只用 handle 寻址服务对象](docs/07-protocol/7.2-handle-routing.md)
 - [第 7.3 章 进入 looper，用同一个 READ 接收事件](docs/07-protocol/7.3-looper-events.md)
-- [第七篇阶段自测](docs/appendices/7-review.md)
+- [第 7.4 章 统一 WRITE_READ，完成服务注册、获取与调用](docs/07-protocol/7.4-write-read.md)
+- [第七篇自测](docs/appendices/7-review.md)
 
-本阶段编写至 7.3，收敛对象创建、调用寻址和事件读取；保留独立 WRITE/READ，不宣称与 AOSP 协议二进制兼容。
+本篇编写至 7.4：自动创建 Node、统一 handle 寻址与事件读取，最终用 WRITE_READ 串起三个独立程序的注册、查询与调用。每方向仍只交换一个命令包，不宣称与 AOSP 协议二进制兼容。
 
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
