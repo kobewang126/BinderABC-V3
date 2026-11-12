@@ -116,25 +116,25 @@ const concurrentEvents = [
   'READ', 'BR_REPLY', '读取自己的回复页', 'BC_FREE_REPLY', 'READ', 'BR_REPLY', '读取自己的回复页', 'BC_FREE_REPLY'
 ];
 const concurrentSteps = [
-  [0, '客户端 A 提交', '客户端 A 线程 · 用户态', '测试客户端按输入构造加法请求并提交。', '2.7/tests/concurrent_test.c', 25, 29, 'request.transaction.code'],
-  [1, '客户端 B 提交', '客户端 B 线程 · 用户态', '另一客户端构造减法请求并提交。', '2.7/tests/concurrent_test.c', 25, 29, 'request.transaction.code'],
-  [2, '服务端读取 A', '服务端线程 · 用户态', '服务端循环读取两笔事务。', '2.7/tests/concurrent_test.c', 65, 72, 'for (i = 0; i < 2; i++)'],
+  [0, '客户端 A 提交', '客户端 A 线程 · 用户态', '测试客户端按输入构造加法请求并提交。', '2.7/tests/concurrent_test.c', 26, 30, 'request.transaction.code'],
+  [1, '客户端 B 提交', '客户端 B 线程 · 用户态', '另一客户端构造减法请求并提交。', '2.7/tests/concurrent_test.c', 26, 30, 'request.transaction.code'],
+  [2, '服务端读取 A', '服务端线程 · 用户态', '服务端循环读取两笔事务。', '2.7/tests/concurrent_test.c', 69, 76, 'for (i = 0; i < 2; i++)'],
   [3, '交付请求 A', '服务端线程 · 内核态', '驱动在领取时计算当前槽的用户地址并返回事务元数据。', '2.7/kernel/mini_binder.c', 266, 295, 'mutex_lock'],
-  [4, '服务端读取 B', '服务端线程 · 用户态', '服务端继续读取下一笔事务。', '2.7/tests/concurrent_test.c', 65, 72, 'for (i = 0; i < 2; i++)'],
+  [4, '服务端读取 B', '服务端线程 · 用户态', '服务端继续读取下一笔事务。', '2.7/tests/concurrent_test.c', 69, 76, 'for (i = 0; i < 2; i++)'],
   [5, '交付请求 B', '服务端线程 · 内核态', '驱动返回另一槽位的编号和地址。', '2.7/kernel/mini_binder.c', 266, 295, 'mutex_lock'],
-  [6, '读取两份请求', '服务端线程 · 用户态', '测试检查地址范围并通过返回的用户地址读取数据。', '2.7/tests/concurrent_test.c', 66, 77, 'if (exchange_command'],
-  [7, '先回复 B', '服务端线程 · 用户态', '测试按领取顺序的逆序发送回复，此处展示 B 先回复的一种情况。', '2.7/tests/concurrent_test.c', 84, 93, 'for (i = 2; i-- > 0;)'],
+  [6, '读取两份请求', '服务端线程 · 用户态', '测试检查地址范围并通过返回的用户地址读取数据。', '2.7/tests/concurrent_test.c', 70, 86, 'if (exchange_command'],
+  [7, '先回复 B', '服务端线程 · 用户态', '测试按领取顺序的逆序发送回复，此处展示 B 先回复的一种情况。', '2.7/tests/concurrent_test.c', 94, 105, 'for (i = 2; i-- > 0;)'],
   [8, '唤醒 B', '服务端线程 · 内核态', '驱动按编号找到槽位，保存回复并唤醒客户端等待队列。', '2.7/kernel/mini_binder.c', 327, 352, 'mutex_lock'],
-  [9, '再回复 A', '服务端线程 · 用户态', '循环继续提交另一笔回复，使用对应请求编号。', '2.7/tests/concurrent_test.c', 84, 93, 'for (i = 2; i-- > 0;)'],
+  [9, '再回复 A', '服务端线程 · 用户态', '循环继续提交另一笔回复，使用对应请求编号。', '2.7/tests/concurrent_test.c', 94, 105, 'for (i = 2; i-- > 0;)'],
   [10, '唤醒 A', '服务端线程 · 内核态', '驱动检查另一笔事务编号并唤醒等待队列。', '2.7/kernel/mini_binder.c', 327, 352, 'mutex_lock'],
   [11, 'B 读取回复命令', '客户端 B 线程 · 用户态', '命令封装在写入事务返回后读取回复命令。', '2.7/userspace/command.h', 16, 25, 'if (read_cmd)'],
   [12, '返回 B 的回复元数据', '客户端 B 线程 · 内核态', '驱动返回当前打开文件上下文中的回复命令。', '2.7/kernel/mini_binder.c', 374, 398, 'static long read_command'],
-  [13, 'B 读取回复页', '客户端 B 线程 · 用户态', '客户端验证自己的映射页中返回的结果。', '2.7/tests/concurrent_test.c', 29, 32, 'if (exchange_command'],
-  [14, 'B 释放回复', '客户端 B 线程 · 用户态', '客户端完成读取后发送 BC_FREE_REPLY。', '2.7/tests/concurrent_test.c', 32, 32, 'exchange_command(fd, &release'],
+  [13, 'B 读取回复页', '客户端 B 线程 · 用户态', '客户端验证自己的映射页中返回的结果。', '2.7/tests/concurrent_test.c', 30, 34, 'if (exchange_command'],
+  [14, 'B 释放回复', '客户端 B 线程 · 用户态', '客户端完成读取后发送 BC_FREE_REPLY。', '2.7/tests/concurrent_test.c', 35, 35, 'exchange_command(fd, &release'],
   [15, 'A 读取回复命令', '客户端 A 线程 · 用户态', '另一客户端读取各自的回复命令。', '2.7/userspace/command.h', 16, 25, 'if (read_cmd)'],
   [16, '返回 A 的回复元数据', '客户端 A 线程 · 内核态', '驱动返回对应文件上下文中的回复命令。', '2.7/kernel/mini_binder.c', 374, 398, 'static long read_command'],
-  [17, 'A 读取回复页', '客户端 A 线程 · 用户态', '另一客户端读取自己的回复页。', '2.7/tests/concurrent_test.c', 29, 32, 'if (exchange_command'],
-  [18, 'A 释放回复', '客户端 A 线程 · 用户态', '读取完成后发送 BC_FREE_REPLY。', '2.7/tests/concurrent_test.c', 32, 32, 'exchange_command(fd, &release']
+  [17, 'A 读取回复页', '客户端 A 线程 · 用户态', '另一客户端读取自己的回复页。', '2.7/tests/concurrent_test.c', 30, 34, 'if (exchange_command'],
+  [18, 'A 释放回复', '客户端 A 线程 · 用户态', '读取完成后发送 BC_FREE_REPLY。', '2.7/tests/concurrent_test.c', 35, 35, 'exchange_command(fd, &release']
 ];
 flows.push(flow('docs/02-transaction/2.7-concurrent-transactions.md', 1, 'sequence', '两笔事务与倒序回复', concurrentEvents, concurrentSteps.map(args => S(...args))));
 

@@ -50,12 +50,15 @@ int main(void)
     ma = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, a, 0);
     mb = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, b, 0);
     assert(ma != MAP_FAILED && mb != MAP_FAILED);
-    assert(transact(a, ma, page, MINI_CALC_GET_OBJECT, 0, 2, 0, &ha) == -EINVAL);
     assert(transact(a, ma, page, MINI_CALC_GET_OBJECT, 0, 0, 0, &ha) == 0);
     assert(transact(b, mb, page, MINI_CALC_GET_OBJECT, 0, 1, 0, &hb) == 0);
     assert(ha == 1 && hb == 1);
     assert(transact(a, ma, page, MINI_CALC_ADD, ha, 7, 3, &result_a) == 0 && result_a == 10);
     assert(transact(b, mb, page, MINI_CALC_MUL, hb, 7, 3, &result_b) == 0 && result_b == 21);
+    printf("file A: local add object -> handle %u, add(7, 3) = %u\n", ha, result_a);
+    printf("file B: local multiply object -> handle %u, mul(7, 3) = %u\n", hb, result_b);
+    puts("same handle number, separate open files, different Nodes");
+    puts("regression: invalid handle, malformed object table and a fresh process");
     assert(transact(a, ma, page, MINI_CALC_ADD, 8, 7, 3, &value) == -ENOENT);
     {
         pid_t child = fork();
@@ -68,6 +71,7 @@ int main(void)
             assert(c >= 0);
             mc = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, c, 0);
             assert(mc != MAP_FAILED);
+            assert(transact(c, mc, page, MINI_CALC_GET_OBJECT, 0, 2, 0, &hc) == -EINVAL);
             assert(transact(c, mc, page, MINI_CALC_GET_OBJECT, 0, 1, 0, &hc) == 0 && hc == 1);
             assert(transact(c, mc, page, MINI_CALC_MUL, hc, 7, 3, &answer) == 0 && answer == 21);
             munmap(mc, (size_t)page); close(c);
@@ -76,8 +80,6 @@ int main(void)
         assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     }
     munmap(ma, (size_t)page); munmap(mb, (size_t)page); close(a); close(b);
-    printf("file A: handle %u, add(7, 3) = %u\n", ha, result_a);
-    printf("file B: handle %u, mul(7, 3) = %u\n", hb, result_b);
     puts("per-file handles, node conversion and calls passed");
     return 0;
 }

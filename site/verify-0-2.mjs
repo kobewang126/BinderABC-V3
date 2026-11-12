@@ -79,7 +79,7 @@ await command('./build/version');
 await command('timeout 15 ./build/concurrent_test');
 await command('timeout 10 ./build/server_mapping_test');
 const concurrentOutput = await page.locator('#terminal-output').innerText();
-for (const expected of ['0207', 'two slots, distinct user addresses, reverse replies, full capacity and reuse passed', 'server mapping ownership, unmap wakeup and remap passed']) {
+for (const expected of ['0207', 'two requests held before either reply', 'third request: EBUSY', 'reverse receive order', 'two slots, distinct user addresses, reverse replies, full capacity and reuse passed', 'server mapping ownership, unmap wakeup and remap passed']) {
   if (!concurrentOutput.includes(expected)) throw new Error(`Concurrent terminal output: ${concurrentOutput}`);
 }
 await page.screenshot({ path: '/tmp/binderabc-reader-0-2.png' });

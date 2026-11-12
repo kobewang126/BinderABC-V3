@@ -58,7 +58,7 @@
 - [第 4.5 章 把引用传回对象拥有者](docs/04-concurrency/4.5-ref-back-to-owner.md)
 - [第四篇自测](docs/appendices/4-review.md)
 
-第三、四篇的额外检查见[可选回归测试](docs/appendices/3-4-regression.md)。
+第三、四篇先运行各章正文中的主实验；额外测试源码保留在对应 `examples/<章号>/tests/` 中。
 
 ### 5 第五篇：线程与同步调用
 

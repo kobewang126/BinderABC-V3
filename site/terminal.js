@@ -159,12 +159,13 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   const versions = { '1.2': '1', '1.3': '3', '1.4': '4', '2.1': '0201', '2.3': '0203', '2.4': '0204', '2.5': '0205', '2.6': '0206', '2.7': '0207' };
   for (const part of [3, 4, 5, 6]) for (let chapter = 1; chapter <= 7; chapter++) versions[`${part}.${chapter}`] = `0${part}0${chapter}`;
   const chapterTests = {
-    '3.3': { object_parcel_test: 'object offsets, decoding, malformed data and rollback passed' },
-    '3.4': { ref_test: 'file A: handle 1, add(7, 3) = 10\nfile B: handle 1, mul(7, 3) = 21\nper-file handles, node conversion and calls passed' },
+    '3.1': { object_test: 'two objects, invalid target and code, recovery passed' },
+    "3.3": { object_parcel_test: "Parcel: 32 bytes, 2 objects\noffsets[0]=4 -> LOCAL, value=0x1122334455667788\noffsets[1]=20 -> HANDLE, value=0x9\nordinary integers at offsets 0 and 16 are not object entries\nregression: reject overlap, out-of-range offsets, invalid type and insufficient space\nobject offsets, decoding, malformed data and rollback passed" },
+    "3.4": { ref_test: "file A: local add object -> handle 1, add(7, 3) = 10\nfile B: local multiply object -> handle 1, mul(7, 3) = 21\nsame handle number, separate open files, different Nodes\nregression: invalid handle, malformed object table and a fresh process\nper-file handles, node conversion and calls passed" },
     '3.5': { multi_server_test: 'handle 1 -> server 1: 1\nhandle 2 -> server 2: 2\ntwo servers: routing and exit isolation passed' },
     '3.6': { local_transfer_test: 'local Node -> receiver Ref 1 -> original object: 77', transfer_test: 'handle 2 translated to recipient handle 1 and invoked successfully' },
     '4.1': { ref_test: 'file A: handle 1, add(7, 3) = 10\nfile B: handle 1, mul(7, 3) = 21\ndup A: handle 1, add(8, 4) = 12\nindependent proc refs and dup shared refs passed' },
-    '4.2': { manager_test: 'service calculator: registered, found and called (result 42)\nmanager handle 0: add, get, call and manager exit passed' },
+    "4.2": { manager_test: "manager: handle 0 ready\nprovider: calculator registered with manager\nclient: get calculator through handle 0 -> local handle 1\nclient: call handle 1 -> result 42\nregression: duplicate manager, malformed query, missing name and process exits\nservice calculator: registered, found and called (result 42)\nmanager handle 0: add, get, call and manager exit passed" },
     '4.3': { thread_test: 'proc A: main thread 1, workers 2 and 3\ndup A: thread 1; proc B: thread 1\none proc, distinct thread records; dup shares proc passed' },
     '4.4': { workers_test: 'two client requests queued before workers started\nthread 1 handled request 1: 10 -> 11\nthread 2 handled request 2: 11 -> 12\ntwo server threads receive separate queued requests' },
     '4.5': { return_to_owner_test: 'reply Ref -> owner local object: 42\nrequest Ref -> owner local object: 42' },
@@ -174,7 +175,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     '5.4': { role_test: 'ordinary client passed a local object and handled its call: twice(7) = 14' },
     '6.1': { fd_demo: 'fd 3 and dup 5 share an open file\nchild via dup: ab; parent via fd: cd\nindependent open: ab' },
     '6.2': { fd_request_demo: 'receiver fd 4 read: data\nrequest fd delivered', mixed_object_test: 'sender fd 3 -> receiver fd 4; binder handle 1\nreceiver read after sender closed: data' },
-    '6.3': { fd_failure_test: 'invalid fd, queued cancellation and receiver death released file references\nfd-table exhaustion and copy failure rolled back reserved descriptors' },
+    "6.3": { fd_failure_test: "receiver: one free fd=63, request contains two fd objects\nreceiver: READ returned EMFILE; second reservation failed\nreceiver: open reused fd=63; first reservation rolled back\nsender: WRITE returned EPIPE; delivery failed\nsender: both pipes reached EOF; driver holds no write-end references\ninvalid fd, queued cancellation and receiver death released file references\nfd-table exhaustion and copy failure rolled back reserved descriptors" },
     '6.4': { fd_reply_demo: 'reply fd 4 read: data', fd_reply_test: 'reply fds 62 and 63 after EFAULT and EMFILE retries: data\nunread fd replies released by thread exit, free and file close\nsubsequent transaction returned 55' }
   };
   function program(name, args, cwd = sessions[active].cwd) {
@@ -210,16 +211,23 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     const service = sessions.find(session => session.server)?.server;
     if (name === 'object_client') {
       if (service !== 'object') return error('object_client: 对象服务端尚未启动');
-      const params = ch === '3.1' ? args : args.slice(1);
-      if (params.length !== 3 || !['add', 'mul'].includes(params[0]) || !params.slice(1).every(x => /^-?\d+$/.test(x))) return error('object_client: 参数无效');
+      const params = args.slice(1);
+      if (args.length !== 4 || !['1', '2'].includes(args[0])) return error('object_client: 对象编号无效');
+      if (params.length !== 3 || !(ch === '3.1' ? ['add', 'sub', 'mul'] : ['add', 'mul']).includes(params[0]) || !params.slice(1).every(x => /^-?\d+$/.test(x))) return error('object_client: 参数无效');
       if (ch !== '3.1' && (args.length !== 4 || !['1', '2'].includes(args[0]) || (args[0] === '1') !== (params[0] === 'add'))) return error('object_client: 对象编号或操作无效');
-      const [a, b] = params.slice(1).map(BigInt), result = params[0] === 'add' ? a + b : a * b;
+      const [a, b] = params.slice(1).map(BigInt);
+      const result = params[0] === 'add' ? a + b : params[0] === 'sub' ? (args[0] === '2' ? b - a : a - b) : a * b;
       if ([a, b, result].some(v => v < -2147483648n || v > 2147483647n)) return error('object_client: 参数或结果超出范围');
-      return line(`${params[0]}(${a}, ${b}) = ${result}`);
+      return line(`${ch === '3.1' ? `object ${args[0]}: ` : ''}${params[0]}(${a}, ${b}) = ${result}`);
+    }
+    if (ch === '6.3' && name === 'fd_failure_test' && args.length === 1 && args[0] === '--fd-full') {
+      if (service) return error('fd_failure_test: 请先停止普通服务端');
+      line('模拟回放：未实际运行测试。', 'info');
+      return line("receiver: one free fd=63, request contains two fd objects\nsender: WRITE returned EPIPE; delivery failed\nsender: both pipes reached EOF; driver holds no write-end references\nreceiver: READ returned EMFILE; second reservation failed\nreceiver: open reused fd=63; first reservation rolled back\ntwo-fd reservation rollback passed");
     }
     if (name in (chapterTests[ch] || {}) && !args.length) {
-      if (['3.4', '4.1'].includes(ch) && service !== 'object') return error(`${name}: 对象服务端尚未启动`);
-      if (service && !['3.4', '4.1'].includes(ch)) return error(`${name}: 请先停止普通服务端`);
+      if (['3.1', '3.4', '4.1'].includes(ch) && service !== 'object') return error(`${name}: 对象服务端尚未启动`);
+      if (service && !['3.1', '3.4', '4.1'].includes(ch)) return error(`${name}: 请先停止普通服务端`);
       line('模拟回放：未实际运行测试。', 'info');
       if (ch === '5.2' && name === 'target_wakeup_test') logs.push('mini_binder: reply id=10 wakes thread=2', 'mini_binder: reply id=9 wakes thread=1');
       if (ch === '5.2' && name === 'thread_reply_test') logs.push('mini_binder: reply id=2 wakes thread=2', 'mini_binder: reply id=1 wakes thread=1', 'mini_binder: reply id=3 wakes thread=3');
@@ -258,7 +266,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
       return line(text[name]);
     }
     const tests = { cancel_test: 'cancelled reply discarded; next call succeeded', stale_reply: ch === '1.4' ? 'stale reply rejected; next client received correct result' : 'cancelled reply discarded; next client received correct result', server_death: 'server death wakes client with EPIPE', mmap_access: 'mapping permissions and lifetime passed' };
-    if (ch === '2.7') Object.assign(tests, { concurrent_test: 'two slots, distinct user addresses, reverse replies, full capacity and reuse passed', server_mapping_test: 'server mapping ownership, unmap wakeup and remap passed', stale_reply: 'cancelled reply discarded; next client received correct result', server_death: 'server death wakes both clients with EPIPE' });
+    if (ch === '2.7') Object.assign(tests, { concurrent_test: "receive id=1: add(10, 1), mapping + 0\nreceive id=2: sub(11, 1), mapping + 256\ntwo requests held before either reply\nthird request: EBUSY (both slots occupied)\nreply id=2: result=10 (reverse receive order)\nclient 11: result=10, reply released\nreply id=1: result=11 (reverse receive order)\nclient 10: result=11, reply released\nreuse id=3: mapping + 0\nclient 20: result=21, reply released\ntwo slots, distinct user addresses, reverse replies, full capacity and reuse passed", server_mapping_test: 'server mapping ownership, unmap wakeup and remap passed', stale_reply: 'cancelled reply discarded; next client received correct result', server_death: 'server death wakes both clients with EPIPE' });
     if (['2.6', '2.7'].includes(ch)) tests.command_test = 'unknown command, invalid address and empty read rejected';
     if (name in tests && !args.length) {
       if (service && name !== 'command_test') return error(`${name}: 请先停止普通服务端`);

@@ -21,6 +21,15 @@ int main(void)
     assert(object_parcel_read(&p, 0, &object) == 0 && object.type == OBJECT_PARCEL_LOCAL &&
            object.value == UINT64_C(0x1122334455667788));
     assert(object_parcel_read(&p, 1, &object) == 0 && object.type == OBJECT_PARCEL_HANDLE && object.value == 9);
+    printf("Parcel: %zu bytes, %zu objects\n", p.bytes.size, (size_t)p.count);
+    for (unsigned int i = 0; i < p.count; i++) {
+        assert(object_parcel_read(&p, i, &object) == 0);
+        printf("offsets[%u]=%u -> %s, value=0x%llx\n", i, p.offsets[i],
+               object.type == OBJECT_PARCEL_LOCAL ? "LOCAL" : "HANDLE",
+               (unsigned long long)object.value);
+    }
+    puts("ordinary integers at offsets 0 and 16 are not object entries");
+    puts("regression: reject overlap, out-of-range offsets, invalid type and insufficient space");
     p.offsets[1] = 8;
     assert(object_parcel_read(&p, 1, &object) == -EINVAL);
     p.offsets[1] = 60;

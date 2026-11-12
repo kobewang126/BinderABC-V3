@@ -16,27 +16,28 @@ struct service_object {
     int (*invoke)(__u32 code, int32_t a, int32_t b, int32_t *result);
 };
 
-static int add(__u32 code, int32_t a, int32_t b, int32_t *result)
+static int calculate(__u32 code, int32_t a, int32_t b, int32_t *result)
 {
-    int64_t value = (int64_t)a + b;
-    if (code != MINI_CALC_ADD) return -ENOTTY;
+    int64_t value;
+    switch (code) {
+    case MINI_CALC_ADD: value = (int64_t)a + b; break;
+    case MINI_CALC_SUB: value = (int64_t)a - b; break;
+    case MINI_CALC_MUL: value = (int64_t)a * b; break;
+    default: return -ENOTTY;
+    }
     if (value < INT32_MIN || value > INT32_MAX) return -ERANGE;
     *result = (int32_t)value;
     return 0;
 }
 
-static int multiply(__u32 code, int32_t a, int32_t b, int32_t *result)
+static int reverse_calculate(__u32 code, int32_t a, int32_t b, int32_t *result)
 {
-    int64_t value = (int64_t)a * b;
-    if (code != MINI_CALC_MUL) return -ENOTTY;
-    if (value < INT32_MIN || value > INT32_MAX) return -ERANGE;
-    *result = (int32_t)value;
-    return 0;
+    return calculate(code, b, a, result);
 }
 
 static int dispatch(__u32 id, __u32 code, int32_t a, int32_t b, int32_t *result)
 {
-    static const struct service_object objects[] = {{1, add}, {2, multiply}};
+    static const struct service_object objects[] = {{1, calculate}, {2, reverse_calculate}};
     for (unsigned int i = 0; i < sizeof(objects) / sizeof(objects[0]); i++)
         if (objects[i].id == id) return objects[i].invoke(code, a, b, result);
     return -ENOENT;

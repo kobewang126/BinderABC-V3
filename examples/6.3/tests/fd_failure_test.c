@@ -55,6 +55,7 @@ static void receiver(enum mode mode, int notify, int control)
         }
         assert(count > 0 && count < (int)(sizeof(saved) / sizeof(saved[0])));
         expected = saved[--count]; assert(close(expected) == 0);
+        printf("receiver: one free fd=%d, request contains two fd objects\n", expected);
     } else if (mode == BAD_ADDRESS) {
         guard = mmap(NULL, (size_t)page * 2, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -65,6 +66,7 @@ static void receiver(enum mode mode, int notify, int control)
     if (mode == FD_FULL || mode == BAD_ADDRESS) {
         if (mode == FD_FULL) {
             assert(ioctl(binder, MINI_BINDER_READ, &req) == -1 && errno == EMFILE);
+            puts("receiver: READ returned EMFILE; second reservation failed");
         } else {
             struct mini_binder_command *bad = (void *)((char *)guard + page - sizeof(uint32_t));
             bad->cmd = MINI_READ_REQUEST;
@@ -74,6 +76,7 @@ static void receiver(enum mode mode, int notify, int control)
         {
             int probe = open("/dev/null", O_RDONLY);
             assert(probe == expected); close(probe);
+            if (mode == FD_FULL) printf("receiver: open reused fd=%d; first reservation rolled back\n", probe);
         }
         assert(write(notify, "P", 1) == 1);
     }
@@ -134,8 +137,10 @@ static void failure(enum mode mode)
     setup_call(&call, r.node, p1[1], mode == INVALID ? INT_MAX : p2[1]);
     ret = ioctl(binder, MINI_BINDER_WRITE, &call);
     assert(ret == -1 && errno == (mode == INVALID ? EBADF : EPIPE));
+    if (mode == FD_FULL) puts("sender: WRITE returned EPIPE; delivery failed");
     close(p1[1]); close(p2[1]);
     assert_eof(p1[0]); assert_eof(p2[0]);
+    if (mode == FD_FULL) puts("sender: both pipes reached EOF; driver holds no write-end references");
     if (mode != INVALID) assert(read(r.notify, &ack, 1) == 1 && ack == 'P');
     munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(binder);
     stop_receiver(&r);
@@ -192,9 +197,16 @@ static void abandoned(enum mode mode)
     munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(s.binder);
     if (mode == CANCEL) stop_receiver(&r); else { close(r.notify); close(r.control); }
 }
-int main(void)
+int main(int argc, char **argv)
 {
     struct sigaction action = {0};
+    setvbuf(stdout, NULL, _IONBF, 0);
+    if (argc == 2 && !strcmp(argv[1], "--fd-full")) {
+        failure(FD_FULL);
+        puts("two-fd reservation rollback passed");
+        return 0;
+    }
+    if (argc != 1) { fprintf(stderr, "usage: fd_failure_test [--fd-full]\n"); return 2; }
     action.sa_handler = on_signal; sigemptyset(&action.sa_mask);
     assert(sigaction(SIGUSR1, &action, NULL) == 0);
     failure(INVALID);

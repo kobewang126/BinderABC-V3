@@ -24,14 +24,17 @@ static int parse_int(const char *text, int32_t *value)
 int main(int argc, char **argv)
 {
     __u32 object, code;
-    int32_t a, b, result;
+    int32_t selected, a, b, result;
     long page_size = sysconf(_SC_PAGESIZE);
     void *mapping;
     int fd, status;
 
-    if (argc != 4 || parse_int(argv[2], &a) || parse_int(argv[3], &b)) goto usage;
-    if (!strcmp(argv[1], "add")) { object = 1; code = MINI_CALC_ADD; }
-    else if (!strcmp(argv[1], "mul")) { object = 2; code = MINI_CALC_MUL; }
+    if (argc != 5 || parse_int(argv[1], &selected) || selected < 1 ||
+        parse_int(argv[3], &a) || parse_int(argv[4], &b)) goto usage;
+    object = (__u32)selected;
+    if (!strcmp(argv[2], "add")) code = MINI_CALC_ADD;
+    else if (!strcmp(argv[2], "sub")) code = MINI_CALC_SUB;
+    else if (!strcmp(argv[2], "mul")) code = MINI_CALC_MUL;
     else goto usage;
     if (page_size < MINI_BINDER_MAX_DATA) return 1;
     fd = open("/dev/mini_binder", O_RDONLY);
@@ -41,8 +44,8 @@ int main(int argc, char **argv)
     status = object_transact(fd, mapping, (size_t)page_size, object, code, a, b, &result);
     munmap(mapping, (size_t)page_size); close(fd);
     if (status) { fprintf(stderr, "calculator: %s\n", strerror(-status)); return 1; }
-    printf("%s(%" PRId32 ", %" PRId32 ") = %" PRId32 "\n", argv[1], a, b, result);
+    printf("object %u: %s(%" PRId32 ", %" PRId32 ") = %" PRId32 "\n", object, argv[2], a, b, result);
     return 0;
 usage:
-    fprintf(stderr, "usage: object_client add|mul A B\n"); return 2;
+    fprintf(stderr, "usage: object_client OBJECT add|sub|mul A B\n"); return 2;
 }

@@ -19,6 +19,7 @@ static void client(unsigned char value)
     long page = sysconf(_SC_PAGESIZE);
     int fd = open("/dev/mini_binder", O_RDONLY);
     unsigned char *mapping;
+    unsigned char result;
     if (fd < 0 || page <= 0) _exit(1);
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     if (mapping == MAP_FAILED) _exit(1);
@@ -28,9 +29,11 @@ static void client(unsigned char value)
     request.transaction.data[1] = 1;
     if (exchange_command(fd, &request, &response) || response.cmd != MINI_BR_REPLY ||
         response.transaction.status || response.transaction.size != 1 ||
-        mapping[0] != (unsigned char)(value == 11 ? value - 1 : value + 1) ||
-        exchange_command(fd, &release, NULL))
+        mapping[0] != (unsigned char)(value == 11 ? value - 1 : value + 1))
         _exit(1);
+    result = mapping[0];
+    if (exchange_command(fd, &release, NULL)) _exit(1);
+    printf("client %u: result=%u, reply released\n", value, result);
     munmap(mapping, (size_t)page);
     close(fd);
     _exit(0);
@@ -54,6 +57,7 @@ int main(void)
     unsigned char values[2];
     unsigned int i;
 
+    setvbuf(stdout, NULL, _IONBF, 0);
     if (fd < 0 || page <= 0 || ioctl(fd, MINI_BINDER_REGISTER_SERVER)) goto out;
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     if (mapping == MAP_FAILED) goto out;
@@ -70,17 +74,23 @@ int main(void)
             ((const unsigned char *)(uintptr_t)received[i].transaction.data_address)[1] != 1)
             goto out;
         values[i] = *(const unsigned char *)(uintptr_t)received[i].transaction.data_address;
+        printf("receive id=%llu: %s(%u, 1), mapping + %llu\n",
+               (unsigned long long)received[i].transaction.id,
+               received[i].transaction.code == MINI_CALC_ADD ? "add" : "sub", values[i],
+               (unsigned long long)(received[i].transaction.data_address - (uintptr_t)mapping));
     }
     if (received[0].transaction.id == received[1].transaction.id ||
         received[0].transaction.data_address == received[1].transaction.data_address ||
         values[0] == values[1] || values[0] + values[1] != 21 ||
         received[0].transaction.code == received[1].transaction.code) goto out;
+    puts("two requests held before either reply");
     third = open("/dev/mini_binder", O_RDONLY);
     if (third < 0) goto out;
     third_mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, third, 0);
     if (third_mapping == MAP_FAILED) goto out;
     full.transaction.size = 1;
     if (exchange_command(third, &full, &ignored) != -EBUSY) goto out;
+    puts("third request: EBUSY (both slots occupied)");
     for (i = 2; i-- > 0;) {
         reply.transaction.id = received[i].transaction.id;
         reply.transaction.size = 1;
@@ -89,6 +99,8 @@ int main(void)
         else if (received[i].transaction.code == MINI_CALC_SUB)
             reply.transaction.data[0] = values[i] - 1;
         else goto out;
+        printf("reply id=%llu: result=%u (reverse receive order)\n",
+               (unsigned long long)reply.transaction.id, reply.transaction.data[0]);
         if (exchange_command(fd, &reply, NULL)) goto out;
     }
     for (i = 0; i < 2; i++) {
@@ -102,6 +114,8 @@ int main(void)
         received[0].transaction.data_address < (uintptr_t)mapping ||
         received[0].transaction.data_address - (uintptr_t)mapping >= (size_t)page ||
         *(const unsigned char *)(uintptr_t)received[0].transaction.data_address != 20) goto out;
+    printf("reuse id=%llu: mapping + %llu\n", (unsigned long long)received[0].transaction.id,
+           (unsigned long long)(received[0].transaction.data_address - (uintptr_t)mapping));
     reply.transaction.id = received[0].transaction.id;
     reply.transaction.size = 1;
     reply.transaction.data[0] = 21;
