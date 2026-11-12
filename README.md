@@ -76,6 +76,15 @@
 - [第 6.4 章 在回复中传递文件描述符](docs/06-file-descriptors/6.4-fd-reply.md)
 - [第六篇自测](docs/appendices/6-review.md)
 
+### 7 第七篇：为用户态封装收敛协议
+
+- [第 7.1 章 第一次传递本地对象时创建 Node](docs/07-protocol/7.1-auto-node.md)
+- [第 7.2 章 只用 handle 寻址服务对象](docs/07-protocol/7.2-handle-routing.md)
+- [第 7.3 章 进入 looper，用同一个 READ 接收事件](docs/07-protocol/7.3-looper-events.md)
+- [第七篇阶段自测](docs/appendices/7-review.md)
+
+本阶段编写至 7.3，收敛对象创建、调用寻址和事件读取；保留独立 WRITE/READ，不宣称与 AOSP 协议二进制兼容。
+
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
 各章的实际验证环境和覆盖范围以对应正文为准。第四篇 4.1 至 4.5 已在 Ubuntu 24.04 ARM64、Linux 6.8.0-147 上编译并运行对应实验。

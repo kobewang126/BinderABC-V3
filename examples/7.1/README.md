@@ -1,0 +1,37 @@
+# 7.1 第一次传递本地对象时创建 Node
+
+本目录保存完整独立源码；获取或解压后直接进入本目录，无需切换 Git 版本。不要跨章节混用驱动和程序。先停止其他章节的服务进程并卸载旧模块，再运行：
+
+```sh
+make
+sudo insmod kernel/mini_binder.ko
+./build/version
+./build/object_demo
+```
+
+协议版本为 `0701`。主实验输出和关键代码解读见第三版教程对应章节。7.1/7.2 的 object_demo 是两进程对象分发实验，以 handle 0 作为最小引导入口；服务名注册与查询由独立的 manager_test 演示。
+
+```sh
+./build/object_demo
+./build/manager_test
+./build/protocol_test
+./build/mapping_test
+./build/stale_reply
+./build/server_death
+sudo rmmod mini_binder
+```
+
+| 程序 | 验证范围 |
+|---|---|
+| object_demo | 重复传递 LOCAL 复用同一 handle；通过对象 handle 调用减法 |
+| manager_test | 三进程注册、查询、调用；缺失服务、无效名称、管理者和提供者退出 |
+| protocol_test | 无效 ioctl/地址/命令/handle；对象转换失败回滚；八 Node 容量；Ref 复用；回到 owner；双向 fd；回复读取 EFAULT/EMFILE 后重试 |
+| mapping_test | 单次只读映射、跨地址空间拒绝、重新映射 |
+| stale_reply | 取消后拒绝旧回复，后续调用正确 |
+| server_death | 两笔调用等待时服务退出，都得到 EPIPE |
+
+`userspace/lab.h` 只复用实验的对象编码、映射和 ioctl 操作，不是 Framework。主实验先于异常测试；协议测试为集中回归，不要求初读时逐行阅读。程序包含断言，实验未使用 NDEBUG；断言失败应停止检查，不能忽略后继续运行。
+
+## 实际验证
+
+2026-11-12 在 Ubuntu 24.04 ARM64、Linux 6.8.0-147-generic 中构建并运行上述所有程序，模块最终卸载成功；对象主实验和协议测试各额外连续运行五次通过。编译器名称与内核构建记录不同、缺少 vmlinux 的 BTF 提示不影响本次已验证的构建与模块加载。未进行性能评估，未穷尽并发取消与解除映射等组合。
