@@ -3,7 +3,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   const terminal = $('terminal');
   const output = $('terminal-output');
   const input = $('terminal-input');
-  const sessions = [0, 1].map((_, index) => ({ cwd: '/', visited: index === 0, lines: [], history: [], historyIndex: 0, server: null, lastStatus: 0 }));
+  const sessions = [0, 1, 2].map((_, index) => ({ cwd: '/', visited: index === 0, lines: [], history: [], historyIndex: 0, server: null, lastStatus: 0 }));
   const built = new Map();
   const logs = [];
   let active = 0;
@@ -157,7 +157,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     error('sudo: 仅支持模拟 insmod、rmmod 和 dmesg');
   }
   const versions = { '1.2': '1', '1.3': '3', '1.4': '4', '2.1': '0201', '2.3': '0203', '2.4': '0204', '2.5': '0205', '2.6': '0206', '2.7': '0207' };
-  for (const part of [3, 4, 5, 6]) for (let chapter = 1; chapter <= 7; chapter++) versions[`${part}.${chapter}`] = `0${part}0${chapter}`;
+  for (const part of [3, 4, 5, 6, 7]) for (let chapter = 1; chapter <= 7; chapter++) versions[`${part}.${chapter}`] = `0${part}0${chapter}`;
   const chapterTests = {
     '3.1': { object_test: 'two objects, invalid target and code, recovery passed' },
     "3.3": { object_parcel_test: "Parcel: 32 bytes, 2 objects\noffsets[0]=4 -> LOCAL, value=0x1122334455667788\noffsets[1]=20 -> HANDLE, value=0x9\nordinary integers at offsets 0 and 16 are not object entries\nregression: reject overlap, out-of-range offsets, invalid type and insufficient space\nobject offsets, decoding, malformed data and rollback passed" },
@@ -178,6 +178,34 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     "6.3": { fd_failure_test: "receiver: one free fd=63, request contains two fd objects\nreceiver: READ returned EMFILE; second reservation failed\nreceiver: open reused fd=63; first reservation rolled back\nsender: WRITE returned EPIPE; delivery failed\nsender: both pipes reached EOF; driver holds no write-end references\ninvalid fd, queued cancellation and receiver death released file references\nfd-table exhaustion and copy failure rolled back reserved descriptors" },
     '6.4': { fd_reply_demo: 'reply fd 4 read: data', fd_reply_test: 'reply fds 62 and 63 after EFAULT and EMFILE retries: data\nunread fd replies released by thread exit, free and file close\nsubsequent transaction returned 55' }
   };
+  const demoOutputs = {
+    '4.2': { manager_test: chapterTests['4.2'].manager_test.replace(/regression:.*\n/, '').replace(/\nmanager handle 0:.*$/, '') },
+    '4.3': { thread_test: 'proc A: main thread 1, workers 3 and 2\ndup A: thread 1; proc B: thread 1\none proc, distinct thread records; dup shares proc passed' },
+    '5.1': { thread_reply_test: chapterTests['5.1'].thread_reply_test.replace('reverse replies, thread isolation, full slots and reuse passed', 'reverse replies and thread isolation passed') },
+    '5.2': { thread_reply_test: chapterTests['5.2'].thread_reply_test.replace('reverse replies, thread isolation, full slots and reuse passed', 'reverse replies and thread isolation passed') },
+    '5.3': { thread_exit_test: 'exited thread released reply offset 0; next caller reused it\nexplicit thread exit and reply cleanup passed' }
+  };
+  for (const ch of ['7.1', '7.2', '7.3']) chapterTests[ch] = {
+    object_demo: 'GET_OBJECT 1: LOCAL(cookie=77) -> client handle 1\nGET_OBJECT 2: LOCAL(cookie=77) -> client handle 1\nhandle 1: sub(7, 3) = 4\nsame local object reused; handle call passed',
+    protocol_test: 'failed translations rolled back; eight Nodes fit; repeated objects reuse handles\nhandle returned to owner as LOCAL; reply reused original handle\nrequest/reply fds, EFAULT and EMFILE retry passed',
+    manager_test: 'service calculator: registered, found and called (result 42)\nmanager handle 0: add, get, call and manager exit passed',
+    mapping_test: 'one read-only mapping, address-space check and remapping passed',
+    stale_reply: 'cancelled reply discarded; next client received correct result',
+    server_death: 'server death wakes both clients with EPIPE',
+    parcel_binding_test: 'Parcel wire compatibility, sequential objects and boundary checks passed'
+  };
+  Object.assign(chapterTests['7.3'], {
+    looper_demo: 'ordinary READ: BR_REPLY, result=11\nBC_ENTER_LOOPER: current thread can receive process requests\nsame READ: BR_TRANSACTION, cookie=77\nBC_REPLY: reverse caller received 22; BC_EXIT_LOOPER completed',
+    looper_test: "ordinary caller: unified READ returned BR_REPLY without entering looper\nordinary reader: did not steal queued request or another thread's reply\nlooper READ 1: BR_REPLY, result=11 (own reply has priority)\nlooper READ 2: BR_TRANSACTION, cookie=77\nENTER/EXIT checks, interrupted READ and unmap wakeup passed"
+  });
+  chapterTests['7.4'] = {
+    write_read_test: 'write-only returned before server received request\nread retry preserved write_consumed: each request submitted exactly once\nclosing callers before receive reclaimed pending slots\nclosing callers after receive detached pointers; late replies rejected\nthread-exit cancellation and completed reply after server close passed',
+    parcel_binding_test: 'name + LOCAL Parcel matches existing wire format; sequential decoding passed\nHANDLE/FD codec, malformed offsets, truncated objects and failed-write rollback passed'
+  };
+  function serviceLog(role, text) {
+    const session = sessions.find(item => item.server === role);
+    if (session) session.lines.push({ text, kind: '' });
+  }
   function program(name, args, cwd = sessions[active].cwd) {
     const ch = cwd.split('/').at(-1);
     if (!hasBinary(name, cwd)) return error(`${name}: 未模拟构建该程序`);
@@ -195,6 +223,38 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     }
     if (!loaded || loaded.name !== 'mini_binder') return error('open /dev/mini_binder: 模拟设备未加载');
     if (loaded.cwd !== cwd) return error('模拟驱动版本与当前章节不匹配，请卸载后加载对应章节模块');
+    if (args.length === 1 && args[0] === '--demo' && demoOutputs[ch]?.[name]) {
+      if (sessions.some(session => session.server)) return error('请先停止普通服务端');
+      line('模拟回放：未实际运行程序。', 'info');
+      return line(demoOutputs[ch][name]);
+    }
+    if (ch === '7.4' && ['servicemanager', 'calculator_server', 'calculator_client', 'service_parcel_test'].includes(name)) {
+      const manager = sessions.find(item => item.server === 'manager');
+      const provider = sessions.find(item => item.server === 'provider');
+      if (name === 'servicemanager') {
+        if (args.length || manager) return error('ServiceManager: 参数错误或管理者已存在');
+        sessions[active].server = 'manager';
+        return line('ServiceManager ready: handle 0');
+      }
+      if (!manager) return error('ServiceManager 尚未启动');
+      if (name === 'calculator_server') {
+        if (args.length) return error('calculator_server: 不支持的参数');
+        if (provider) return error('addService failed: -17');
+        sessions[active].server = 'provider';
+        serviceLog('manager', 'addService(calculator): manager handle=1');
+        return line('calculator registered: LOCAL(cookie=123)');
+      }
+      if (name === 'service_parcel_test') {
+        if (args.length || !provider) return error('请先启动 calculator_server');
+        line('模拟回放：未实际运行测试。', 'info');
+        return line('Parcel RPC: truncated name/arguments and trailing arguments rejected; valid call recovered');
+      }
+      if (args.length > 1) return error('calculator_client: 不支持的参数');
+      if ((args[0] && args[0] !== 'calculator') || !provider) return error(`getService(${args[0] || 'calculator'}): -2`);
+      serviceLog('manager', 'getService(calculator): return HANDLE object');
+      serviceLog('provider', 'add(7, 3) = 10\nsub(7, 3) = 4');
+      return line('getService(calculator): client handle=1\nremote add(7, 3) = 10\nremote sub(7, 3) = 4');
+    }
     if (name === 'version') {
       if (!args.length) return line(`mini-binder protocol version: ${versions[ch]}`);
       if (args.length === 1 && args[0] === '--invalid') return line('unknown ioctl rejected: ENOTTY');
@@ -294,7 +354,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     const words = (background ? text.replace(/\s+&$/, '') : text).split(/\s+/);
     if (background && words[0] !== './build/client') return error('模拟器仅支持客户端后台命令');
     const command = words.shift();
-    if (command === 'help') return line('支持: pwd, ls, cd, cat, make, uname, sudo insmod/rmmod/dmesg\n      ./build/程序, timeout 10 ./build/测试, wait, clear\n两个终端共享模拟的模块和服务端状态；Ctrl+C 可停止服务端。', 'info');
+    if (command === 'help') return line('支持: pwd, ls, cd, cat, make, uname, sudo insmod/rmmod/dmesg\n      ./build/程序, timeout 10 ./build/测试, wait, clear\n三个终端共享模拟的模块和服务端状态；Ctrl+C 可停止服务端。', 'info');
     if (command === 'clear' && !words.length) { session.lines = []; return; }
     if (command === 'pwd' && !words.length) return line(session.cwd);
     if (command === 'ls' && words.join(' ') === '-l /dev/mini_binder') {
@@ -321,7 +381,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     if (command === 'sudo' && words[0]?.startsWith('./build/')) return program(words[0].slice(8), words.slice(1));
     if (command === 'sudo') return moduleCommand(words);
     if (command === 'wait' && !words.length) return line('模拟：后台客户端已完成。', 'info');
-    if (command === 'timeout' && ['10', '15'].includes(words[0]) && words[1]?.startsWith('./build/')) return program(words[1].slice(8), words.slice(2));
+    if (command === 'timeout' && /^[1-9][0-9]*$/.test(words[0]) && words[1]?.startsWith('./build/')) return program(words[1].slice(8), words.slice(2));
     if (command.startsWith('./build/')) return program(command.slice(8), words);
     if (command.startsWith('./') && session.cwd.endsWith('/build') && !command.slice(2).includes('/')) return program(command.slice(2), words, session.cwd.slice(0, -6));
     error(`${command}: 不支持的模拟命令；输入 help 查看支持范围`);

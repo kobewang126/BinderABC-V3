@@ -26,7 +26,7 @@ $('toggle-tree').innerHTML = makeIcon('panel-left');
 $('copy-code').innerHTML = makeIcon('copy');
 $('file-icon').innerHTML = makeIcon('file-code-2');
 $('empty-icon').innerHTML = makeIcon('code-2');
-$('chapter-count').textContent = `${chapters.length} 章`;
+$('chapter-count').textContent = `${chapters.filter(chapter => !chapter.path.includes('/appendices/')).length} 章`;
 $('source-count').textContent = `${Object.keys(files).length} 个文件`;
 
 function closePanels() {
@@ -187,8 +187,9 @@ function openSource(filename, ranges = [], { openPanel = true, explanation } = {
 }
 
 function group(path) {
-  const groups = ['预备篇', '第一篇 · 同步 RPC', '第二篇 · 事务与映射', '第三篇 · 对象与引用', '第四篇 · 进程与线程', '第五篇 · 同步调用', '第六篇 · 文件描述符'];
-  const match = path.match(/docs\/(?:0([0-6])-[^/]+\/|appendices\/([0-6])-review\.md)/);
+  const groups = ['预备篇', '第一篇 · 同步 RPC', '第二篇 · 事务与映射', '第三篇 · 对象与引用', '第四篇 · 进程与线程', '第五篇 · 同步调用', '第六篇 · 文件描述符', '第七篇 · 协议收敛'];
+  if (path.includes('appendices/') && !/\/[0-7]-review\.md$/.test(path)) return '阅读指南';
+  const match = path.match(/docs\/(?:0([0-7])-[^/]+\/|appendices\/([0-7])-review\.md)/);
   return groups[Number(match?.[1] ?? match?.[2] ?? 0)];
 }
 function renderNavigation() {

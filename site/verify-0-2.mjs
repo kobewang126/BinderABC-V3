@@ -5,7 +5,6 @@ import path from 'node:path';
 const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
-const flowCounts = [1, 1, 0, 0, 1, 1, 2, 1, 3, 0, 2, 2, 1, 1, 2];
 page.on('pageerror', error => errors.push(error.message));
 await page.goto(pathToFileURL(path.resolve('dist/BinderABC-V3/index.html')).href);
 await page.waitForSelector('.chapter-link');
@@ -31,8 +30,8 @@ for (let i = 0; i < chapterIndices.length; i++) {
   }, chapterIndices[i]);
   if (await page.locator('.source-ref').count() !== expected.refs) throw new Error(`Source references: chapter ${i}`);
   if (expected.diagrams) await page.waitForFunction(n => document.querySelectorAll('.static-flow-scroll svg').length === n, expected.diagrams, { timeout: 15000 });
-  if (flowCounts[i]) {
-    await page.waitForFunction(n => document.querySelectorAll('.flow-panel').length === n, flowCounts[i], { timeout: 15000 });
+  if (expected.diagrams) {
+    await page.waitForFunction(n => document.querySelectorAll('.flow-panel').length === n, expected.diagrams, { timeout: 15000 });
     for (const panel of await page.locator('.flow-panel').all()) {
       while (await panel.locator('.flow-next').isEnabled()) {
         await panel.locator('.flow-next').click();

@@ -21,10 +21,11 @@ for (const chapter of exampleEntries.filter(entry => entry.isDirectory() && /^\d
   });
 }
 await cp(path.join(sourceRoot, 'Makefile'), path.join(out, 'examples', 'Makefile'));
-for (const directory of ['00-preparation', '01-rpc', '02-transaction', '03-objects', '04-concurrency', '05-threading', '06-file-descriptors', 'appendices']) {
+for (const directory of ['00-preparation', '01-rpc', '02-transaction', '03-objects', '04-concurrency', '05-threading', '06-file-descriptors', '07-protocol', 'appendices']) {
   await cp(path.join(root, 'docs', directory), path.join(out, 'docs', directory), { recursive: true });
 }
 await cp(path.join(root, 'README.md'), path.join(out, 'README.md'));
+await cp(path.join(root, 'validation'), path.join(out, 'validation'), { recursive: true });
 await cp(path.join(site, 'index.html'), path.join(out, 'index.html'));
 await cp(path.join(site, 'style.css'), path.join(out, 'style.css'));
 await cp(path.join(site, 'terminal.css'), path.join(out, 'terminal.css'));
@@ -33,7 +34,8 @@ await cp(path.join(site, 'flow.css'), path.join(out, 'flow.css'));
 const readme = await readFile(path.join(root, 'README.md'), 'utf8');
 const chapters = [];
 for (const match of readme.matchAll(/\[([^\]]+)\]\((docs\/[^)]+\.md)\)/g)) {
-  if (!/^docs\/(?:00-preparation|01-rpc|02-transaction|03-objects|04-concurrency|05-threading|06-file-descriptors)\//.test(match[2]) && !/^docs\/appendices\/[0-6]-review\.md$/.test(match[2])) continue;
+  if (!/^docs\/(?:00-preparation|01-rpc|02-transaction|03-objects|04-concurrency|05-threading|06-file-descriptors|07-protocol)\//.test(match[2]) && !/^docs\/appendices\/(?:[0-7]-review|reading-guide|protocol-evolution)\.md$/.test(match[2])) continue;
+  if (chapters.some(chapter => chapter.path === match[2])) continue;
   chapters.push({ title: match[1], path: match[2], markdown: await readFile(path.join(root, match[2]), 'utf8') });
 }
 await writeFile(path.join(out, 'README.md'), `# BinderABC 离线阅读包\n\n打开 index.html 阅读。模拟终端不会执行真实命令。源码按章节保存在 examples/，请在 Linux 环境中根据教程进行真实实验。\n\n## 阅读目录\n\n${chapters.map(chapter => `- [${chapter.title}](${chapter.path})`).join('\n')}\n`);
@@ -49,14 +51,15 @@ async function walk(dir, prefix) {
 await walk(path.join(out, 'examples'), 'examples');
 const extraFlows = v3Specs.map(spec => {
   const chapter = chapters.find(item => item.path === spec.path);
-  const diagram = chapter?.markdown.match(/```mermaid\s*\n([\s\S]*?)```/)?.[1];
+  const diagramIndex = spec.diagram || 0;
+  const diagram = [...(chapter?.markdown.matchAll(/```mermaid\s*\n([\s\S]*?)```/g) || [])][diagramIndex]?.[1];
   if (!diagram) throw new Error(`Missing diagram: ${spec.path}`);
   let events;
   if (spec.kind === 'sequence') {
     events = [...diagram.matchAll(/^\s*\w+\s*(?:-->>|->>)\s*\w+\s*:\s*(.+)$/gm)].map(match => match[1].trim());
   } else {
     const nodes = new Map();
-    for (const match of diagram.matchAll(/\b(\w+)\[([^\]]+)\]/g)) if (!nodes.has(match[1])) nodes.set(match[1], match[2]);
+    for (const match of diagram.matchAll(/\b(\w+)(?:\[([^\]]+)\]|\{([^}]+)\})/g)) if (!nodes.has(match[1])) nodes.set(match[1], match[2] ?? match[3]);
     events = [...nodes.values()];
   }
   if (events.length !== spec.refs.length) throw new Error(`Flow step count mismatch: ${spec.path}: ${events.length} vs ${spec.refs.length}`);
@@ -85,7 +88,7 @@ const extraFlows = v3Specs.map(spec => {
       : specific || `${events[index]}。右侧展示该步骤相关的代码，执行上下文标注在上方。`;
     return { message: index, title: events[index], context, detail, file, ranges: [[start, end]], anchor: [start, needle] };
   });
-  return { chapter: spec.path, diagram: 0, kind: spec.kind, title: chapter.title, events, steps };
+  return { chapter: spec.path, diagram: diagramIndex, kind: spec.kind, title: chapter.title, events, steps };
 });
 flows.push(...extraFlows);
 for (const chapter of chapters) {
@@ -136,7 +139,7 @@ await writeFile(path.join(out, 'data.js'), `window.BINDERABC_DATA = ${JSON.strin
 await build({ entryPoints: [path.join(site, 'app.js')], bundle: true, minify: true, outfile: path.join(out, 'app.bundle.js'), platform: 'browser', target: ['chrome100', 'safari16'] });
 const sourceReadme = `# BinderABC V3 配套源码
 
-本包包含预备篇及第一至第六篇的完整独立示例、驱动和测试，源码与下载页面的教程一致。
+本包包含预备篇及第一至第七篇的完整独立示例、驱动和测试，源码与下载页面的教程一致。
 
 ## 使用方法
 
@@ -166,6 +169,12 @@ with zipfile.ZipFile(reader_zip.with_suffix('.zip.tmp'), 'w', zipfile.ZIP_DEFLAT
         if file.is_file():
             archive.write(file, file.relative_to(out.parent))
 os.replace(reader_zip.with_suffix('.zip.tmp'), reader_zip)
+deploy_zip = out.parent / 'BinderABC-V3-deploy.zip'
+with zipfile.ZipFile(deploy_zip.with_suffix('.zip.tmp'), 'w', zipfile.ZIP_DEFLATED) as archive:
+    for file in sorted(out.rglob('*')):
+        if file.is_file():
+            archive.write(file, file.relative_to(out))
+os.replace(deploy_zip.with_suffix('.zip.tmp'), deploy_zip)
 `, out], { input: JSON.stringify({ files, readme: sourceReadme }) });
 console.log(`Built ${chapters.length} chapters, ${flows.length} diagrams, ${annotations.length} explanations and ${Object.keys(files).length} source files in ${out}`);
 console.log('Created source download ZIP and complete offline reader ZIP.');
