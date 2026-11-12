@@ -8,6 +8,12 @@ const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 await page.goto(pathToFileURL(path.resolve('dist/BinderABC-V3/index.html')).href);
 await page.waitForSelector('.chapter-link');
+const downloadEvent = page.waitForEvent('download');
+await page.locator('#download-source').click();
+const sourceDownload = await downloadEvent;
+if (sourceDownload.suggestedFilename() !== 'BinderABC-V3-source.zip' || await sourceDownload.failure()) {
+  throw new Error('Source ZIP download failed');
+}
 const specs = await page.evaluate(() => window.BINDERABC_DATA.extraFlows.map(flow => ({ path: flow.chapter, count: flow.steps.length })));
 for (const spec of specs) {
   const index = await page.evaluate(path => window.BINDERABC_DATA.chapters.findIndex(chapter => chapter.path === path), spec.path);

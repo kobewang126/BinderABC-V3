@@ -1,5 +1,6 @@
 import { build } from 'esbuild';
-import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marked } from 'marked';
@@ -10,6 +11,7 @@ const site = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(site, '..');
 const sourceRoot = path.join(root, 'examples');
 const out = path.join(site, 'dist', 'BinderABC-V3');
+await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 const exampleEntries = await readdir(sourceRoot, { withFileTypes: true });
 for (const chapter of exampleEntries.filter(entry => entry.isDirectory() && /^\d+\.\d+$/.test(entry.name)).map(entry => entry.name)) {
@@ -132,4 +134,38 @@ for (const chapter of chapters) {
 }
 await writeFile(path.join(out, 'data.js'), `window.BINDERABC_DATA = ${JSON.stringify({ chapters, files, annotations, extraFlows })};\n`);
 await build({ entryPoints: [path.join(site, 'app.js')], bundle: true, minify: true, outfile: path.join(out, 'app.bundle.js'), platform: 'browser', target: ['chrome100', 'safari16'] });
+const sourceReadme = `# BinderABC V3 配套源码
+
+本包包含预备篇及第一至第六篇的完整独立示例、驱动和测试，源码与下载页面的教程一致。
+
+## 使用方法
+
+- 解压后在 Linux 中打开 examples/，根据教程进入对应章节目录。
+- 每章独立编译和运行，无需切换 Git 标签；压缩包不包含 Git 历史。
+- 0.1、0.2、1.1 的程序在 examples/ 根目录执行 make 后运行；其他章节按各自 README 或正文操作。
+- 驱动实验需要 C 编译器、Make、kmod、匹配运行内核的构建目录和模块加载权限。
+- 同名 mini_binder 模块不能同时加载多个章节；切换前先停止服务端并卸载旧模块。
+- 本包不包含编译产物；先用 make 编译，再直接执行生成的二进制。
+
+实验步骤、预期输出和限制请对照教程中的对应章节。网页模拟终端不会执行真实程序。
+`;
+execFileSync('python3', ['-c', `
+import json, os, sys, zipfile
+from pathlib import Path
+payload = json.load(sys.stdin)
+out = Path(sys.argv[1])
+source_zip = out / 'BinderABC-V3-source.zip'
+with zipfile.ZipFile(source_zip.with_suffix('.zip.tmp'), 'w', zipfile.ZIP_DEFLATED) as archive:
+    archive.writestr('BinderABC-V3-source/README.md', payload['readme'])
+    for name, content in sorted(payload['files'].items()):
+        archive.writestr('BinderABC-V3-source/' + name, content)
+os.replace(source_zip.with_suffix('.zip.tmp'), source_zip)
+reader_zip = out.parent / 'BinderABC-V3.zip'
+with zipfile.ZipFile(reader_zip.with_suffix('.zip.tmp'), 'w', zipfile.ZIP_DEFLATED) as archive:
+    for file in sorted(out.rglob('*')):
+        if file.is_file():
+            archive.write(file, file.relative_to(out.parent))
+os.replace(reader_zip.with_suffix('.zip.tmp'), reader_zip)
+`, out], { input: JSON.stringify({ files, readme: sourceReadme }) });
 console.log(`Built ${chapters.length} chapters, ${flows.length} diagrams, ${annotations.length} explanations and ${Object.keys(files).length} source files in ${out}`);
+console.log('Created source download ZIP and complete offline reader ZIP.');
