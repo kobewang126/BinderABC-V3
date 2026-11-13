@@ -15,7 +15,7 @@ if (sourceDownload.suggestedFilename() !== 'BinderABC-V3-source.zip' || await so
   throw new Error('Source ZIP download failed');
 }
 const counts = await page.evaluate(() => ({ chapters: window.BINDERABC_DATA.chapters.filter(ch => !ch.path.includes('/appendices/')).length, entries: window.BINDERABC_DATA.chapters.length }));
-if (counts.chapters !== 39 || counts.entries !== 49) throw new Error(`Incomplete navigation: ${JSON.stringify(counts)}`);
+if (counts.chapters !== 38 || counts.entries !== 48) throw new Error(`Incomplete navigation: ${JSON.stringify(counts)}`);
 // 所有章节共用顶部悬浮目录；展开、收起不能改变正文或滚动位置。
 async function articleLayout() {
   return page.evaluate(() => {
@@ -70,18 +70,18 @@ async function command(text) {
 }
 for (const [chapter, program, expected] of [
   ['3.3', 'object_parcel_test', 'offsets[1]=20 -> HANDLE'],
-  ['4.2', 'manager_test --demo', 'client: get calculator through handle 0 -> local handle 1'],
+  ['4.4', 'manager_test --demo', 'client: get calculator through handle 0 -> local handle 1'],
   ['3.6', 'transfer_test', 'translated to recipient handle'],
-  ['4.4', 'workers_test', 'queued before workers'],
-  ['5.2', 'target_wakeup_test', 'target wake events 1; other wake events 0'],
+  ['5.2', 'workers_test', 'queued before workers'],
+  ['5.4', 'target_wakeup_test', 'target wake events 1; other wake events 0'],
   ['6.1', 'fd_demo', 'independent open: ab'],
   ['6.3', 'fd_failure_test --fd-full', 'first reservation rolled back'],
   ['6.4', 'fd_reply_demo', 'reply fd 4 read: data'],
-  ['4.3', 'thread_test --demo', 'workers 3 and 2'],
-  ['5.1', 'thread_reply_test --demo', 'reverse replies and thread isolation passed'],
-  ['5.2', 'thread_reply_test --demo', '20 -> 21'],
-  ['5.3', 'service_threads_demo', 'two service threads completed four calls'],
-  ['4.6', 'role_test', 'twice(7) = 14'],
+  ['5.1', 'thread_test --demo', 'workers 3 and 2'],
+  ['5.3', 'thread_reply_test --demo', 'reverse replies and thread isolation passed'],
+  ['5.4', 'thread_reply_test --demo', '20 -> 21'],
+  ['5.2', 'service_threads_demo', 'two service threads completed four calls'],
+  ['4.3', 'role_test', 'twice(7) = 14'],
   ['7.1', 'object_demo', 'same local object reused'],
   ['7.2', 'object_demo', 'same local object reused'],
   ['7.3', 'looper_demo', 'BC_EXIT_LOOPER completed'],
@@ -95,7 +95,7 @@ for (const [chapter, program, expected] of [
     await command('sudo insmod kernel/mini_binder.ko');
     await command('./build/version');
   }
-  await command(`${chapter === '5.2' ? 'sudo ' : ''}./build/${program}`);
+  await command(`${chapter === '5.4' ? 'sudo ' : ''}./build/${program}`);
   const output = await page.locator('#terminal-output').innerText();
   if (!output.includes(expected) || !output.includes('模拟回放')) throw new Error(`Terminal ${chapter}: ${output}`);
   if (!['3.3', '6.1'].includes(chapter)) await command('sudo rmmod mini_binder');

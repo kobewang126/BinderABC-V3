@@ -11,9 +11,8 @@
 #define MINI_BINDER_OBJECT_LOCAL 1U
 #define MINI_BINDER_OBJECT_HANDLE 2U
 #define MINI_BINDER_IOC_MAGIC 'M'
-#define MINI_BINDER_GET_VERSION _IOR(MINI_BINDER_IOC_MAGIC, 0, __u32)
 #define MINI_BINDER_REGISTER_MANAGER _IO(MINI_BINDER_IOC_MAGIC, 22)
-#define MINI_BINDER_GET_THREAD_ID _IOR(MINI_BINDER_IOC_MAGIC, 23, __u32)
+#define MINI_BINDER_GET_VERSION _IOR(MINI_BINDER_IOC_MAGIC, 0, __u32)
 
 struct mini_binder_transaction_data {
     __u64 id;
@@ -38,6 +37,8 @@ enum mini_binder_command_code {
     MINI_BC_TRANSACTION = 1,
     MINI_BC_REPLY = 2,
     MINI_BC_FREE_REPLY = 3,
+    MINI_READ_REQUEST = 201,
+    MINI_READ_REPLY = 202,
     MINI_BR_TRANSACTION = 101,
     MINI_BR_REPLY = 102,
 };
@@ -55,7 +56,6 @@ enum mini_binder_calc_cmd {
     MINI_CALC_GET_OBJECT = 5,
 };
 
-#define MINI_BINDER_REGISTER_SERVER _IO(MINI_BINDER_IOC_MAGIC, 1)
 #define MINI_BINDER_CREATE_NODE _IOWR(MINI_BINDER_IOC_MAGIC, 2, struct mini_binder_node_create)
 #define MINI_BINDER_WRITE _IOW(MINI_BINDER_IOC_MAGIC, 21, struct mini_binder_command)
 #define MINI_BINDER_READ _IOR(MINI_BINDER_IOC_MAGIC, 22, struct mini_binder_command)

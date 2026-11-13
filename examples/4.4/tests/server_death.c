@@ -43,7 +43,7 @@ int main(void)
         long page = sysconf(_SC_PAGESIZE);
         close(ready[0]);
         close(received[0]);
-        if (fd < 0 || page <= 0 || ioctl(fd, MINI_BINDER_REGISTER_SERVER) ||
+        if (fd < 0 || page <= 0 ||
             ioctl(fd, MINI_BINDER_REGISTER_MANAGER) ||
             mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0) == MAP_FAILED ||
             write(ready[1], "R", 1) != 1 ||

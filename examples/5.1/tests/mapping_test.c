@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 
 int main(void)
 {
@@ -19,7 +20,7 @@ int main(void)
     struct mini_binder_command req = {.cmd = MINI_READ_REQUEST};
     assert(fd >= 0 && page > 0);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == -1 && errno == ENXIO);
-    assert(ioctl(fd, MINI_BINDER_READ, &req) == -1 && errno == ENXIO);
+    assert(read_request(fd, &req) == -1 && errno == ENXIO);
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED);
     other = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
@@ -29,13 +30,13 @@ int main(void)
     if (!child) {
         struct mini_binder_command child_req = {.cmd = MINI_READ_REQUEST};
         assert(ioctl(fd, MINI_BINDER_WRITE, &call) == -1 && errno == ENXIO);
-        assert(ioctl(fd, MINI_BINDER_READ, &child_req) == -1 && errno == ENXIO);
+        assert(read_request(fd, &child_req) == -1 && errno == ENXIO);
         _exit(0);
     }
     assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     assert(munmap(mapping, (size_t)page) == 0);
     req.cmd = MINI_READ_REQUEST;
-    assert(ioctl(fd, MINI_BINDER_READ, &req) == -1 && errno == ENXIO);
+    assert(read_request(fd, &req) == -1 && errno == ENXIO);
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED);
     munmap(mapping, (size_t)page); close(fd);

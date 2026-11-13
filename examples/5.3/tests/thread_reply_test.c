@@ -5,21 +5,21 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
 #include <test_io.h>
-#include "../userspace/command.h"
+
+static int demo;
 
 struct worker {
     int fd;
     unsigned char *mapping;
     unsigned char input;
-    uint32_t thread_id;
     uint32_t offset;
     unsigned char result;
     pthread_barrier_t *phase;
@@ -38,11 +38,10 @@ static void *client_thread(void *arg)
     struct mini_binder_command reply = {0}, release = {.cmd = MINI_BC_FREE_REPLY};
     call.transaction.size = 1;
     call.transaction.data[0] = worker->input;
-    assert(ioctl(worker->fd, MINI_BINDER_GET_THREAD_ID, &worker->thread_id) == 0);
     assert(ioctl(worker->fd, MINI_BINDER_WRITE, &call) == 0);
     barrier(worker->phase);
     barrier(worker->phase);
-    if (worker->input == 10)
+    if (!demo && worker->input == 10)
         assert(read_reply(worker->fd, (void *)0) == -1 && errno == EFAULT);
     assert(read_reply(worker->fd, &reply) == 0 && reply.cmd == MINI_BR_REPLY);
     assert(reply.transaction.size == 1 && reply.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA && reply.transaction.reply_offset < 4 * MINI_BINDER_MAX_DATA);
@@ -55,98 +54,45 @@ static void *client_thread(void *arg)
     return NULL;
 }
 
-struct service_group {
-    int fd;
-    pthread_barrier_t phase;
-    pthread_mutex_t lock;
-    pthread_cond_t changed;
-    int second_done;
-    uintptr_t addresses[2];
-};
-static void receive(int fd, struct mini_binder_command *event)
-{
-    memset(event, 0, sizeof(*event));
-#if MINI_BINDER_PROTOCOL_VERSION >= 406 && MINI_BINDER_PROTOCOL_VERSION < 703
-    event->cmd = MINI_READ_REQUEST;
-#endif
-    assert(exchange_command(fd, NULL, event) == 0);
-    assert(event->cmd == MINI_BR_TRANSACTION);
-}
-static void enter_service(int fd)
-{
-#if MINI_BINDER_PROTOCOL_VERSION >= 703
-    struct mini_binder_command enter = {.cmd = MINI_BC_ENTER_LOOPER};
-    assert(exchange_command(fd, &enter, NULL) == 0);
-#else
-    (void)fd;
-#endif
-}
-static void *service_worker(void *arg)
-{
-    struct service_group *group = arg;
-    struct mini_binder_command event, again = {0}, reply = {.cmd = MINI_BC_REPLY};
-    enter_service(group->fd);
-    receive(group->fd, &event);
-    assert(event.transaction.size == 1);
-    unsigned char value = *(const unsigned char *)(uintptr_t)event.transaction.data_address;
-    assert(value == 10 || value == 20);
-    group->addresses[value == 20] = event.transaction.data_address;
-#if MINI_BINDER_PROTOCOL_VERSION >= 406 && MINI_BINDER_PROTOCOL_VERSION < 703
-    again.cmd = MINI_READ_REQUEST;
-#endif
-    assert(exchange_command(group->fd, NULL, &again) == -EBUSY);
-    barrier(&group->phase);
-    barrier(&group->phase);
-    assert(pthread_mutex_lock(&group->lock) == 0);
-    while (value == 10 && !group->second_done)
-        assert(pthread_cond_wait(&group->changed, &group->lock) == 0);
-    reply.transaction.size = 1;
-    reply.transaction.data[0] = value + 1;
-    assert(exchange_command(group->fd, &reply, NULL) == 0);
-    /* A second BC_REPLY cannot select a different request. */
-    assert(exchange_command(group->fd, &reply, NULL) == -ENOENT);
-    if (value == 20) {
-        group->second_done = 1;
-        assert(pthread_cond_broadcast(&group->changed) == 0);
-    }
-    assert(pthread_mutex_unlock(&group->lock) == 0);
-    return NULL;
-}
 static void server(int ready, int stop)
 {
     int fd = open("/dev/mini_binder", O_RDWR);
     long page = sysconf(_SC_PAGESIZE);
-    unsigned char byte;
-    pthread_t workers[2];
-    struct service_group group = {.fd = fd, .lock = PTHREAD_MUTEX_INITIALIZER,
-                                 .changed = PTHREAD_COND_INITIALIZER};
-    struct mini_binder_command event, reply = {.cmd = MINI_BC_REPLY};
+    void *mapping;
+    struct mini_binder_command received[2] = {0};
+    struct mini_binder_command reply = {.cmd = MINI_BC_REPLY};
+    unsigned char values[2], byte;
     assert(fd >= 0);
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
-    void *mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
-    assert(mapping != MAP_FAILED && pthread_barrier_init(&group.phase, NULL, 3) == 0);
-    for (int i = 0; i < 2; i++)
-        assert(pthread_create(&workers[i], NULL, service_worker, &group) == 0);
-    assert(write(ready, "R", 1) == 1); close(ready);
-    barrier(&group.phase);
-    assert(group.addresses[0] != group.addresses[1]);
-    /* This thread did not receive either request: it cannot answer for a worker. */
-    assert(exchange_command(fd, &reply, NULL) == -ENOENT);
-    barrier(&group.phase);
-    for (int i = 0; i < 2; i++) assert(pthread_join(workers[i], NULL) == 0);
-    {
-        enter_service(fd);
-        receive(fd, &event);
+    mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
+    assert(mapping != MAP_FAILED && write(ready, "R", 1) == 1);
+    close(ready);
+    for (int i = 0; i < 2; i++) {
+        assert(read_request(fd, &received[i]) == 0);
+        assert(received[i].transaction.size == 1);
+        values[i] = *(const unsigned char *)(uintptr_t)received[i].transaction.data_address;
+    }
+    for (int i = 1; i >= 0; i--) {
+        reply.transaction.id = received[i].transaction.id;
         reply.transaction.size = 1;
-        reply.transaction.data[0] = *(const unsigned char *)(uintptr_t)event.transaction.data_address + 1;
-        assert(exchange_command(fd, &reply, NULL) == 0);
+        reply.transaction.data[0] = values[i] + 1;
+        assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
+    }
+    if (!demo) {
+        assert(read_request(fd, &received[0]) == 0);
+        assert(received[0].transaction.size == 1);
+        reply.transaction.id = received[0].transaction.id;
+        reply.transaction.data[0] = *(const unsigned char *)(uintptr_t)received[0].transaction.data_address + 1;
+        assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     }
     assert(read(stop, &byte, 1) == 1);
     close(stop); munmap(mapping, (size_t)page); close(fd); _exit(0);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    demo = argc == 2 && strcmp(argv[1], "--demo") == 0;
+    assert(argc == 1 || demo);
     int ready[2], stop[2], fd, status;
     pid_t child;
     unsigned char byte, *mapping;
@@ -170,29 +116,31 @@ int main(void)
         assert(pthread_create(&threads[i], NULL, client_thread, &workers[i]) == 0);
     }
     barrier(&phase);
-    assert(read_reply(fd, &reply) == -1 && errno == ENOENT);
-    assert(ioctl(fd, MINI_BINDER_WRITE, &release) == -1 && errno == ENOENT);
-    third.transaction.size = 1; third.transaction.data[0] = 30;
-    assert(ioctl(fd, MINI_BINDER_WRITE, &third) == -1 && errno == EBUSY);
-    assert(ioctl(fd, MINI_BINDER_THREAD_EXIT) == 0);
+    if (!demo) {
+        assert(read_reply(fd, &reply) == -1 && errno == ENOENT);
+        assert(ioctl(fd, MINI_BINDER_WRITE, &release) == -1 && errno == ENOENT);
+        third.transaction.size = 1; third.transaction.data[0] = 30;
+        assert(ioctl(fd, MINI_BINDER_WRITE, &third) == -1 && errno == EBUSY);
+    }
     barrier(&phase);
     barrier(&phase);
     assert(workers[0].offset != workers[1].offset);
-    assert(workers[0].thread_id != workers[1].thread_id);
     assert(mapping[workers[0].offset] == workers[0].result && mapping[workers[1].offset] == workers[1].result);
     for (int i = 0; i < 2; i++)
-        printf("thread %u: %u -> %u, offset %u\n", workers[i].thread_id,
-               (unsigned int)workers[i].input,
+        printf("thread input %u: reply %u at offset %u\n", (unsigned int)workers[i].input,
                (unsigned int)workers[i].result, workers[i].offset);
     barrier(&phase);
     for (int i = 0; i < 2; i++) assert(pthread_join(threads[i], NULL) == 0);
-    assert(ioctl(fd, MINI_BINDER_WRITE, &third) == 0);
-    assert(read_reply(fd, &reply) == 0);
-    assert(reply.transaction.size == 1 && mapping[reply.transaction.reply_offset] == 31);
-    assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
+    if (!demo) {
+        assert(ioctl(fd, MINI_BINDER_WRITE, &third) == 0);
+        assert(read_reply(fd, &reply) == 0);
+        assert(reply.transaction.size == 1 && mapping[reply.transaction.reply_offset] == 31);
+        assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
+    }
     assert(write(stop[1], "S", 1) == 1); close(stop[1]);
     assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     pthread_barrier_destroy(&phase); munmap(mapping, (size_t)page); close(fd);
-    puts("reverse replies, thread isolation, full slots and reuse passed");
+    puts(demo ? "reverse replies and thread isolation passed" :
+                "reverse replies, thread isolation, full slots and reuse passed");
     return 0;
 }

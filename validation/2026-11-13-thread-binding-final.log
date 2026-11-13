@@ -1,0 +1,21 @@
+mini-binder protocol version: 0504
+thread 1: 10 -> 11, offset 512
+thread 2: 20 -> 21, offset 768
+reverse replies and thread isolation passed
+thread 1: 10 -> 11, offset 512
+thread 2: 20 -> 21, offset 768
+reverse replies, thread isolation, full slots and reuse passed
+reply -> binder thread=1: target wake events 1; other wake events 0
+reply -> binder thread=2
+both threads received their own replies
+one service fd and mapping; two service threads sleeping in READ
+round 1, worker 1: 10 -> 11
+round 1, worker 2: 20 -> 21
+round 2, worker 1: 11 -> 12
+round 2, worker 2: 21 -> 22
+two service threads completed four calls; callers received their own replies
+12 exited threads reused record; reply offset 512 reused
+explicit thread exit and reply cleanup passed
+service thread exit: waiting caller received EPIPE
+cancelled transaction and repeated thread records reclaimed
+next service thread: reply = 42; slots reused

@@ -16,13 +16,13 @@
 #define MINI_BINDER_GET_THREAD_ID _IOR(MINI_BINDER_IOC_MAGIC, 23, __u32)
 
 struct mini_binder_transaction_data {
+    __u64 id;
     __u64 data_address;
     __u64 target_node;
     __u64 object_cookie;
     __u32 target_handle;
     __u32 object_count;
     __u32 object_offsets[MINI_BINDER_MAX_OBJECTS];
-    __u32 reply_offset;
     __u32 size;
     __s32 status;
     __u32 code;

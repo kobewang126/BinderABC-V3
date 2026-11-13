@@ -97,7 +97,7 @@ int main(void)
         client_run(0);
     if (second < 0)
         goto out;
-
+    reply.id = old_req.id;
     reply.size = 1;
     reply.data[0] = 99;
     outgoing.transaction = reply;
@@ -110,7 +110,7 @@ int main(void)
         new_req.data_address - (uintptr_t)payload >= (size_t)page_size ||
         new_req.size != 1 || *(const unsigned char *)(uintptr_t)new_req.data_address != 40)
         goto out;
-
+    reply.id = new_req.id;
     reply.data[0] = 42;
     outgoing.transaction = reply;
     if (exchange_command(fd, &outgoing, NULL))

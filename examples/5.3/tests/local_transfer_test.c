@@ -43,7 +43,7 @@ static void receiver(int ready_fd)
     assert(request.transaction.object_count == 1 && get32(data) == MINI_BINDER_OBJECT_HANDLE);
     call.transaction.target_handle = get32(data + 4);
     assert(call.transaction.target_handle == 1);
-
+    reply.transaction.id = request.transaction.id;
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
     assert(read_reply(fd, &result) == 0);
@@ -82,7 +82,7 @@ int main(void)
     free_reply(fd);
     assert(read_request(fd, &request) == 0);
     assert(request.transaction.target_node == node.node_id && request.transaction.object_cookie == 11);
-
+    reply.transaction.id = request.transaction.id;
     reply.transaction.size = 4;
     put32(reply.transaction.data, 77);
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);

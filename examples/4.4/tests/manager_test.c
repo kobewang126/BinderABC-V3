@@ -12,6 +12,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 #include <parcel_binding.h>
 
 static void put32(unsigned char *p, uint32_t x) { for (int i = 0; i < 4; i++) p[i] = (unsigned char)(x >> (8 * i)); }
@@ -27,7 +28,7 @@ static void ready(int fd) { char c = 'x'; assert(write(fd, &c, 1) == 1); close(f
 static void await_ready(int fd) { char c; assert(read(fd, &c, 1) == 1); close(fd); }
 static void *map(int fd) { void *p = mmap(NULL, (size_t)sysconf(_SC_PAGESIZE), PROT_READ, MAP_SHARED, fd, 0); assert(p != MAP_FAILED); return p; }
 static void transact(int fd, struct mini_binder_command *req, struct mini_binder_command *reply)
-{ assert(ioctl(fd, MINI_BINDER_WRITE, req) == 0); assert(ioctl(fd, MINI_BINDER_READ, reply) == 0 && reply->cmd == MINI_BR_REPLY); }
+{ assert(ioctl(fd, MINI_BINDER_WRITE, req) == 0); assert(read_reply(fd, reply) == 0 && reply->cmd == MINI_BR_REPLY); }
 static void free_reply(int fd) { struct mini_binder_command c = {.cmd = MINI_BC_FREE_REPLY}; assert(ioctl(fd, MINI_BINDER_WRITE, &c) == 0); }
 
 static void manager(int ready_fd)
@@ -35,7 +36,7 @@ static void manager(int ready_fd)
     int fd = open("/dev/mini_binder", O_RDWR);
     uint32_t saved = 0;
     char name[33] = {0};
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     (void)map(fd);
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     ready(ready_fd);
@@ -45,7 +46,7 @@ static void manager(int ready_fd)
         struct parcel_object object;
         const unsigned char *text;
         size_t length;
-        assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
+        assert(read_request(fd, &req) == 0);
         reply.transaction.id = req.transaction.id;
         object_parcel_init(&response, reply.transaction.data, sizeof(reply.transaction.data));
         int invalid = parcel_from_transaction(&request, &req.transaction,
@@ -73,7 +74,7 @@ static void provider(int ready_fd)
     int fd = open("/dev/mini_binder", O_RDWR);
     struct mini_binder_node_create node = {.cookie = 123};
     struct mini_binder_command req = {.cmd = MINI_BC_TRANSACTION}, result = {0};
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     (void)map(fd);
     assert(ioctl(fd, MINI_BINDER_CREATE_NODE, &node) == 0);
     struct object_parcel registration;
@@ -86,25 +87,49 @@ static void provider(int ready_fd)
     ready(ready_fd);
     for (;;) {
         struct mini_binder_command in = {0}, reply = {.cmd = MINI_BC_REPLY};
-        assert(ioctl(fd, MINI_BINDER_READ, &in) == 0 && in.transaction.object_cookie == 123);
+        assert(read_request(fd, &in) == 0 && in.transaction.object_cookie == 123);
         reply.transaction.id = in.transaction.id; reply.transaction.size = 4; put32(reply.transaction.data, 42);
         assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     }
 }
-int main(void)
+int main(int argc, char **argv)
 {
+    int demo = argc == 2 && strcmp(argv[1], "--demo") == 0;
+    assert(argc == 1 || demo);
     int p[2], fd, status; pid_t sm, service;
     unsigned char *mapping;
     struct mini_binder_command req = {.cmd = MINI_BC_TRANSACTION}, reply = {0};
+    setvbuf(stdout, NULL, _IONBF, 0);
     assert(pipe(p) == 0); sm = fork(); assert(sm >= 0);
     if (!sm) { close(p[0]); manager(p[1]); _exit(1); } close(p[1]); await_ready(p[0]);
-    fd = open("/dev/mini_binder", O_RDWR); assert(fd >= 0);
-    assert(ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
-    assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == -1 && errno == EBUSY);
-    close(fd);
+    puts("manager: handle 0 ready");
     assert(pipe(p) == 0); service = fork(); assert(service >= 0);
     if (!service) { close(p[0]); provider(p[1]); _exit(1); } close(p[1]); await_ready(p[0]);
+    puts("provider: calculator registered with manager");
     fd = open("/dev/mini_binder", O_RDWR); assert(fd >= 0); mapping = map(fd);
+    req.transaction.code = 2; req.transaction.size = put_name(req.transaction.data, "calculator");
+    transact(fd, &req, &reply); assert(reply.transaction.status == 0 && reply.transaction.object_count == 1);
+    assert(get32(mapping + 2 * MINI_BINDER_MAX_DATA) == MINI_BINDER_OBJECT_HANDLE && get32(mapping + 2 * MINI_BINDER_MAX_DATA + 4) == 1);
+    printf("client: get calculator through handle 0 -> local handle %u\n", get32(mapping + 2 * MINI_BINDER_MAX_DATA + 4));
+    free_reply(fd);
+    memset(&req, 0, sizeof(req)); memset(&reply, 0, sizeof(reply));
+    req.cmd = MINI_BC_TRANSACTION; req.transaction.target_handle = 1; req.transaction.code = 3;
+    transact(fd, &req, &reply); assert(reply.transaction.size == 4 && get32(mapping + 2 * MINI_BINDER_MAX_DATA) == 42);
+    printf("client: call handle %u -> result %u\n", req.transaction.target_handle, get32(mapping + 2 * MINI_BINDER_MAX_DATA));
+    free_reply(fd);
+    if (demo) {
+        kill(sm, SIGKILL); waitpid(sm, &status, 0);
+        kill(service, SIGKILL); waitpid(service, &status, 0);
+        goto cleanup;
+    }
+    puts("regression: duplicate manager, malformed query, missing name and process exits");
+    {
+        int duplicate = open("/dev/mini_binder", O_RDWR);
+        assert(duplicate >= 0);
+        assert(ioctl(duplicate, MINI_BINDER_REGISTER_MANAGER) == -1 && errno == EBUSY);
+        close(duplicate);
+    }
+    memset(&req, 0, sizeof(req)); memset(&reply, 0, sizeof(reply)); req.cmd = MINI_BC_TRANSACTION;
     req.transaction.code = 2; req.transaction.size = 4; put32(req.transaction.data, 33);
     transact(fd, &req, &reply); assert(reply.transaction.status == -EINVAL); free_reply(fd);
     memset(&reply, 0, sizeof(reply));
@@ -113,25 +138,18 @@ int main(void)
     memset(&reply, 0, sizeof(reply));
     req.transaction.code = 2; req.transaction.size = put_name(req.transaction.data, "missing");
     transact(fd, &req, &reply); assert(reply.transaction.status == -ENOENT); free_reply(fd);
-    memset(&reply, 0, sizeof(reply));
-    req.transaction.size = put_name(req.transaction.data, "calculator");
-    transact(fd, &req, &reply); assert(reply.transaction.status == 0 && reply.transaction.object_count == 1);
-    assert(get32(mapping) == MINI_BINDER_OBJECT_HANDLE && get32(mapping + 4) == 1);
-    free_reply(fd);
-    memset(&req, 0, sizeof(req)); memset(&reply, 0, sizeof(reply));
-    req.cmd = MINI_BC_TRANSACTION; req.transaction.target_handle = 1; req.transaction.code = 3;
-    transact(fd, &req, &reply); assert(reply.transaction.size == 4 && get32(mapping) == 42); free_reply(fd);
     kill(sm, SIGKILL); waitpid(sm, &status, 0);
     memset(&req, 0, sizeof(req)); req.cmd = MINI_BC_TRANSACTION;
     assert(ioctl(fd, MINI_BINDER_WRITE, &req) == -1 && errno == ENOTCONN);
     memset(&req, 0, sizeof(req)); memset(&reply, 0, sizeof(reply));
     req.cmd = MINI_BC_TRANSACTION; req.transaction.target_handle = 1;
-    transact(fd, &req, &reply); assert(get32(mapping) == 42); free_reply(fd);
+    transact(fd, &req, &reply); assert(get32(mapping + 2 * MINI_BINDER_MAX_DATA) == 42); free_reply(fd);
     kill(service, SIGKILL); waitpid(service, &status, 0);
     memset(&req, 0, sizeof(req)); req.cmd = MINI_BC_TRANSACTION; req.transaction.target_handle = 1;
     assert(ioctl(fd, MINI_BINDER_WRITE, &req) == -1 && errno == ENOENT);
+cleanup:
     munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(fd);
     puts("service calculator: registered, found and called (result 42)");
-    puts("manager handle 0: add, get, call and manager exit passed");
+    if (!demo) puts("manager handle 0: add, get, call and manager exit passed");
     return 0;
 }

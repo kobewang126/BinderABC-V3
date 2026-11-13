@@ -89,6 +89,14 @@ static long translate_objects(struct file *sender_file,
             if (j < ARRAY_SIZE(nodes)) id = nodes[j].id;
         } else return -EINVAL;
         if (j == ARRAY_SIZE(nodes)) return -ENOENT;
+        if (nodes[j].owner == receiver) {
+            __u64 cookie = nodes[j].cookie;
+            put_unaligned_le32(MINI_BINDER_OBJECT_LOCAL, transaction->data + offset);
+            put_unaligned_le32((__u32)cookie, transaction->data + offset + 4);
+            put_unaligned_le32((__u32)(cookie >> 32), transaction->data + offset + 8);
+            previous = offset;
+            continue;
+        }
         for (k = 0; k < ARRAY_SIZE(refs); k++) if (refs[k].node_id == id) break;
         if (k == ARRAY_SIZE(refs)) {
             for (k = 0; k < ARRAY_SIZE(refs); k++) if (!refs[k].node_id) break;
@@ -158,6 +166,7 @@ static long register_server(struct file *file)
     else {
         ctx->buffer = buffer;
         WRITE_ONCE(ctx->is_server, true);
+        if (!server_file) WRITE_ONCE(server_file, file);
     }
     mutex_unlock(&state_lock);
     if (ret)
@@ -530,16 +539,6 @@ static long mini_binder_ioctl(struct file *file, unsigned int cmd, unsigned long
         return copy_to_user(user_arg, &version, sizeof(version)) ? -EFAULT : 0;
     case MINI_BINDER_REGISTER_SERVER:
         return register_server(file);
-    case MINI_BINDER_REGISTER_MANAGER: {
-        struct mini_binder_proc *ctx = file->private_data;
-        long ret = 0;
-        mutex_lock(&state_lock);
-        if (!ctx->is_server) ret = -EPERM;
-        else if (server_file) ret = -EBUSY;
-        else WRITE_ONCE(server_file, file);
-        mutex_unlock(&state_lock);
-        return ret;
-    }
     case MINI_BINDER_CREATE_NODE:
         return create_node(file, user_arg);
     case MINI_BINDER_WRITE:

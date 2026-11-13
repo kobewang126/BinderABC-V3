@@ -5,7 +5,6 @@
 #include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
-#include <linux/pid.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
@@ -21,21 +20,14 @@ struct mini_binder_ref {
     __u64 node_id;
 };
 
-struct mini_binder_thread {
-    struct pid *pid;
-    __u32 id;
-};
-
 struct mini_binder_proc {
     struct file *file;
-    bool is_server;
     void *buffer;
-    struct vm_area_struct *server_vma;
+    struct vm_area_struct *mapping_vma;
     bool inflight;
     bool reply_ready;
     bool reply_delivered;
     struct mini_binder_ref refs[MINI_BINDER_MAX_OBJECTS];
-    struct mini_binder_thread threads[8];
     struct mini_binder_transaction_data pending_reply;
 };
 
@@ -57,37 +49,10 @@ static DEFINE_MUTEX(state_lock);
 static DEFINE_SPINLOCK(mapping_lock);
 static DECLARE_WAIT_QUEUE_HEAD(server_wait);
 static DECLARE_WAIT_QUEUE_HEAD(client_wait);
-static struct file *server_file;
 static struct transaction_slot slots[SLOT_COUNT];
 static __u64 next_id;
 static struct mini_binder_node nodes[8];
 static __u64 next_node_id;
-
-static long get_thread_id(struct mini_binder_proc *proc, __u32 *id)
-{
-    struct pid *pid = task_pid(current);
-    unsigned int i, empty = ARRAY_SIZE(proc->threads);
-    long ret = 0;
-
-    mutex_lock(&state_lock);
-    for (i = 0; i < ARRAY_SIZE(proc->threads); i++) {
-        if (proc->threads[i].pid == pid) {
-            *id = proc->threads[i].id;
-            goto out;
-        }
-        if (!proc->threads[i].pid && empty == ARRAY_SIZE(proc->threads)) empty = i;
-    }
-    if (empty == ARRAY_SIZE(proc->threads)) {
-        ret = -ENOSPC;
-    } else {
-        proc->threads[empty].pid = get_pid(pid);
-        proc->threads[empty].id = empty + 1;
-        *id = empty + 1;
-    }
-out:
-    mutex_unlock(&state_lock);
-    return ret;
-}
 
 /* Resolve sender-local handles and stage receiver-local references atomically. */
 static long translate_objects(struct file *sender_file,
@@ -122,6 +87,14 @@ static long translate_objects(struct file *sender_file,
             if (j < ARRAY_SIZE(nodes)) id = nodes[j].id;
         } else return -EINVAL;
         if (j == ARRAY_SIZE(nodes)) return -ENOENT;
+        if (nodes[j].owner == receiver) {
+            __u64 cookie = nodes[j].cookie;
+            put_unaligned_le32(MINI_BINDER_OBJECT_LOCAL, transaction->data + offset);
+            put_unaligned_le32((__u32)cookie, transaction->data + offset + 4);
+            put_unaligned_le32((__u32)(cookie >> 32), transaction->data + offset + 8);
+            previous = offset;
+            continue;
+        }
         for (k = 0; k < ARRAY_SIZE(refs); k++) if (refs[k].node_id == id) break;
         if (k == ARRAY_SIZE(refs)) {
             for (k = 0; k < ARRAY_SIZE(refs); k++) if (!refs[k].node_id) break;
@@ -146,7 +119,6 @@ static long create_node(struct file *file, void __user *arg)
     if (copy_from_user(&create, arg, sizeof(create))) return -EFAULT;
     if (!create.cookie) return -EINVAL;
     mutex_lock(&state_lock);
-    if (!((struct mini_binder_proc *)file->private_data)->is_server) { ret = -EPERM; goto out; }
     for (i = 0; i < ARRAY_SIZE(nodes); i++) {
         if (nodes[i].owner == file->private_data && nodes[i].cookie == create.cookie) { ret = -EEXIST; goto out; }
         if (!nodes[i].owner && free_index == ARRAY_SIZE(nodes)) free_index = i;
@@ -177,34 +149,13 @@ static int mini_binder_open(struct inode *inode, struct file *file)
     return 0;
 }
 
-static long register_server(struct file *file)
-{
-    struct mini_binder_proc *ctx = file->private_data;
-    void *buffer = vmalloc_user(PAGE_SIZE);
-    long ret = 0;
-
-    if (!buffer)
-        return -ENOMEM;
-    mutex_lock(&state_lock);
-    if (ctx->is_server || ctx->buffer)
-        ret = -EBUSY;
-    else {
-        ctx->buffer = buffer;
-        WRITE_ONCE(ctx->is_server, true);
-    }
-    mutex_unlock(&state_lock);
-    if (ret)
-        vfree(buffer);
-    return ret;
-}
-
-static void server_vma_close(struct vm_area_struct *vma)
+static void mapping_vma_close(struct vm_area_struct *vma)
 {
     struct mini_binder_proc *ctx = vma->vm_private_data;
     bool cleared = false;
     spin_lock(&mapping_lock);
-    if (ctx->server_vma == vma) {
-        ctx->server_vma = NULL;
+    if (ctx->mapping_vma == vma) {
+        ctx->mapping_vma = NULL;
         cleared = true;
     }
     spin_unlock(&mapping_lock);
@@ -212,24 +163,24 @@ static void server_vma_close(struct vm_area_struct *vma)
         wake_up_interruptible_all(&server_wait);
 }
 
-static bool server_mapping_valid(struct mini_binder_proc *ctx, struct mm_struct *mm)
+static bool mapping_valid(struct mini_binder_proc *ctx, struct mm_struct *mm)
 {
     bool valid;
     spin_lock(&mapping_lock);
-    valid = ctx->server_vma && ctx->server_vma->vm_mm == mm;
+    valid = ctx->mapping_vma && ctx->mapping_vma->vm_mm == mm;
     spin_unlock(&mapping_lock);
     return valid;
 }
 
-static int server_vma_mremap(struct vm_area_struct *vma)
+static int mapping_vma_mremap(struct vm_area_struct *vma)
 {
     (void)vma;
     return -EINVAL;
 }
 
-static const struct vm_operations_struct server_vm_ops = {
-    .close = server_vma_close,
-    .mremap = server_vma_mremap,
+static const struct vm_operations_struct mapping_vm_ops = {
+    .close = mapping_vma_close,
+    .mremap = mapping_vma_mremap,
 };
 
 static int mini_binder_mmap(struct file *file, struct vm_area_struct *vma)
@@ -241,10 +192,10 @@ static int mini_binder_mmap(struct file *file, struct vm_area_struct *vma)
         !(vma->vm_flags & VM_MAYSHARE) || (vma->vm_flags & (VM_WRITE | VM_EXEC)))
         return -EINVAL;
     mutex_lock(&state_lock);
-    if (ctx->is_server) {
+    {
         bool mapped;
         spin_lock(&mapping_lock);
-        mapped = ctx->server_vma != NULL;
+        mapped = ctx->mapping_vma != NULL;
         spin_unlock(&mapping_lock);
         if (mapped) {
             mutex_unlock(&state_lock);
@@ -259,12 +210,12 @@ static int mini_binder_mmap(struct file *file, struct vm_area_struct *vma)
         vm_flags_clear(vma, VM_MAYWRITE | VM_MAYEXEC);
         vm_flags_set(vma, VM_DONTEXPAND | VM_DONTDUMP);
         ret = remap_vmalloc_range(vma, ctx->buffer, 0);
-        if (!ret && ctx->is_server) {
+        if (!ret) {
             vm_flags_set(vma, VM_DONTCOPY);
-            vma->vm_ops = &server_vm_ops;
+            vma->vm_ops = &mapping_vm_ops;
             vma->vm_private_data = ctx;
             spin_lock(&mapping_lock);
-            ctx->server_vma = vma;
+            ctx->mapping_vma = vma;
             spin_unlock(&mapping_lock);
         }
     }
@@ -287,7 +238,7 @@ static long call_server(struct file *file, void __user *arg)
     if (transaction.size > MINI_BINDER_MAX_DATA)
         return -EMSGSIZE;
     mutex_lock(&state_lock);
-    if (!client_ctx->buffer) {
+    if (!client_ctx->buffer || !mapping_valid(client_ctx, current->mm)) {
         ret = -ENXIO;
         goto unlock_state;
     }
@@ -313,13 +264,13 @@ static long call_server(struct file *file, void __user *arg)
         receiver = nodes[i].owner->file;
     } else {
         transaction.object_cookie = 0;
-        receiver = server_file;
+        receiver = NULL;
     }
     if (!receiver) { ret = -ENOTCONN; goto unlock_state; }
     if (receiver == file) { ret = -EINVAL; goto unlock_state; }
     server_ctx = receiver->private_data;
     spin_lock(&mapping_lock);
-    if (!server_ctx->server_vma) {
+    if (!server_ctx->mapping_vma) {
         spin_unlock(&mapping_lock);
         ret = -ENXIO;
         goto unlock_state;
@@ -361,7 +312,7 @@ static long call_server(struct file *file, void __user *arg)
         transaction.status = slot->reply.status;
         transaction.object_count = slot->reply.object_count;
         memcpy(transaction.object_offsets, slot->reply.object_offsets, sizeof(transaction.object_offsets));
-        memcpy(client_ctx->buffer, slot->reply.data, slot->reply.size);
+        memcpy((char *)client_ctx->buffer + SLOT_COUNT * MINI_BINDER_MAX_DATA, slot->reply.data, slot->reply.size);
         transaction.object_cookie = 0;
         client_ctx->pending_reply = transaction;
         client_ctx->reply_ready = true;
@@ -414,19 +365,15 @@ static long receive_request(struct file *file, void __user *arg)
 
     for (;;) {
         mutex_lock(&state_lock);
-        if (!((struct mini_binder_proc *)file->private_data)->is_server) {
-            mutex_unlock(&state_lock);
-            return -EPERM;
-        }
         {
             struct mini_binder_proc *ctx = file->private_data;
             spin_lock(&mapping_lock);
-            if (!ctx->server_vma || ctx->server_vma->vm_mm != current->mm) {
+            if (!ctx->mapping_vma || ctx->mapping_vma->vm_mm != current->mm) {
                 spin_unlock(&mapping_lock);
                 mutex_unlock(&state_lock);
                 return -ENXIO;
             }
-            user_base = ctx->server_vma->vm_start;
+            user_base = ctx->mapping_vma->vm_start;
             spin_unlock(&mapping_lock);
         }
         for (i = 0; i < SLOT_COUNT; i++) {
@@ -456,8 +403,8 @@ static long receive_request(struct file *file, void __user *arg)
         }
         mutex_unlock(&state_lock);
         ret = wait_event_interruptible(server_wait,
-                pending_request(file) || !READ_ONCE(((struct mini_binder_proc *)file->private_data)->is_server) ||
-                !server_mapping_valid(file->private_data, current->mm));
+                pending_request(file) ||
+                !mapping_valid(file->private_data, current->mm));
         if (ret)
             return ret;
     }
@@ -485,9 +432,7 @@ static long send_reply(struct file *file, void __user *arg)
             break;
         }
     }
-    if (!((struct mini_binder_proc *)file->private_data)->is_server)
-        ret = -EPERM;
-    else if (!slot)
+    if (!slot)
         ret = -ENOENT;
     else if (slot->receiver != file)
         ret = -EPERM;
@@ -534,11 +479,15 @@ static long read_command(struct file *file, void __user *arg)
     struct mini_binder_command reply = {.cmd = MINI_BR_REPLY};
     long ret = 0;
 
-    if (READ_ONCE(ctx->is_server) && !READ_ONCE(ctx->reply_ready)) {
+    __u32 kind;
+
+    if (get_user(kind, &read_cmd->cmd)) return -EFAULT;
+    if (kind == MINI_READ_REQUEST) {
         if (put_user(MINI_BR_TRANSACTION, &read_cmd->cmd))
             return -EFAULT;
         return receive_request(file, &read_cmd->transaction);
     }
+    if (kind != MINI_READ_REPLY) return -EINVAL;
     mutex_lock(&state_lock);
     if (!ctx->reply_ready || ctx->reply_delivered) {
         ret = -ENOENT;
@@ -556,31 +505,11 @@ static long read_command(struct file *file, void __user *arg)
 static long mini_binder_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
     __u32 version = MINI_BINDER_PROTOCOL_VERSION;
-    __u32 thread_id;
-    long ret;
     void __user *user_arg = (void __user *)arg;
 
-    if (cmd == MINI_BINDER_WRITE || cmd == MINI_BINDER_READ || cmd == MINI_BINDER_GET_THREAD_ID) {
-        ret = get_thread_id(file->private_data, &thread_id);
-        if (ret) return ret;
-        if (cmd == MINI_BINDER_GET_THREAD_ID)
-            return copy_to_user(user_arg, &thread_id, sizeof(thread_id)) ? -EFAULT : 0;
-    }
     switch (cmd) {
     case MINI_BINDER_GET_VERSION:
         return copy_to_user(user_arg, &version, sizeof(version)) ? -EFAULT : 0;
-    case MINI_BINDER_REGISTER_SERVER:
-        return register_server(file);
-    case MINI_BINDER_REGISTER_MANAGER: {
-        struct mini_binder_proc *ctx = file->private_data;
-        long ret = 0;
-        mutex_lock(&state_lock);
-        if (!ctx->is_server) ret = -EPERM;
-        else if (server_file) ret = -EBUSY;
-        else WRITE_ONCE(server_file, file);
-        mutex_unlock(&state_lock);
-        return ret;
-    }
     case MINI_BINDER_CREATE_NODE:
         return create_node(file, user_arg);
     case MINI_BINDER_WRITE:
@@ -600,8 +529,7 @@ static int mini_binder_release(struct inode *inode, struct file *file)
 
     (void)inode;
     mutex_lock(&state_lock);
-    if (ctx->is_server) {
-        if (server_file == file) WRITE_ONCE(server_file, NULL);
+    {
         for (i = 0; i < ARRAY_SIZE(nodes); i++)
             if (nodes[i].owner == ctx) memset(&nodes[i], 0, sizeof(nodes[i]));
         for (i = 0; i < SLOT_COUNT; i++) {
@@ -617,7 +545,6 @@ static int mini_binder_release(struct inode *inode, struct file *file)
     mutex_unlock(&state_lock);
     if (wake)
         wake_up_interruptible(&client_wait);
-    for (i = 0; i < ARRAY_SIZE(ctx->threads); i++) put_pid(ctx->threads[i].pid);
     vfree(ctx->buffer);
     kfree(ctx);
     return 0;

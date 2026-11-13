@@ -4,7 +4,7 @@
 
 先阅读章首问题，预测结果，再按正文从本章目录构建并运行。下表只列主要观察点；完整命令、源码文件与行号、实际输出及验证边界以各章正文为准。压缩包读者不需要 Git。切换驱动章节前应停止原程序并卸载同名模块。
 
-按章号阅读，先准备环境，再进行内核模块实验。第四篇的 4.5 是对象转换的补全，4.6 是角色对称性的检查，不应当作新的线程调度机制。
+按章号阅读，先准备环境，再进行内核模块实验。第四篇完成对象与服务发现，第五篇才逐步增加线程、共同请求队列和回复绑定。
 
 ## 第 0 篇
 
@@ -51,20 +51,19 @@
 
 | 章 | 本章问题 | 最小实验入口 | 要观察的证据 |
 | --- | --- | --- | --- |
-| [4.1](../04-concurrency/4.1-binder-proc.md) | 对象、引用和映射归谁管理？ | object_server + ref_test | 外部调用行为不变；内部状态集中到 proc |
-| [4.2](../04-concurrency/4.2-service-manager.md) | 没有预先收到引用时怎样找到服务？ | manager_test --demo | 注册名称、查询 handle、调用服务，结果为 42 |
-| [4.3](../04-concurrency/4.3-binder-thread.md) | 同一上下文怎样识别不同调用线程？ | thread_test --demo | dup 共享上下文；不同线程拥有不同记录 |
-| [4.4](../04-concurrency/4.4-proc-todo.md) | 服务线程怎样领取进程待办？ | workers_test | 先看到两个请求排队，再由两个线程各领取一笔 |
-| [4.5](../04-concurrency/4.5-ref-back-to-owner.md) | 引用传回拥有者时还需要 Ref 吗？ | return_to_owner_test | 请求和回复都恢复 LOCAL 与原 cookie，拥有者调用本地函数 |
-| [4.6](../04-concurrency/4.6-client-objects.md) | 客户端能否也成为对象拥有者？ | role_test | 两个进程都不 REGISTER_SERVER，仍能按先后双向调用 |
+| [4.1](../04-concurrency/4.1-binder-proc.md) | 上下文中哪些资源共享？ | object_server + ref_test | 独立open与dup的Ref归属 |
+| [4.2](../04-concurrency/4.2-ref-back-to-owner.md) | 引用回到拥有者如何转换？ | return_to_owner_test | 请求和回复均恢复LOCAL cookie |
+| [4.3](../04-concurrency/4.3-client-objects.md) | 调用者能否也提供对象？ | role_test | 两个普通上下文先后双向调用 |
+| [4.4](../04-concurrency/4.4-service-manager.md) | 最初的服务handle从哪里来？ | manager_test --demo | 注册、查询、直接调用服务 |
 
 ## 第 5 篇
 
 | 章 | 本章问题 | 最小实验入口 | 要观察的证据 |
 | --- | --- | --- | --- |
-| [5.1](../05-threading/5.1-thread-replies.md) | 共享文件的两个线程怎样分别接收回复？ | thread_reply_test --demo | 倒序回复仍匹配原线程，映射位置互不覆盖 |
-| [5.2](../05-threading/5.2-thread-todo.md) | 服务线程不填 id，怎样找到该回复的调用线程？ | thread_reply_test --demo | 两个服务线程各自绑定请求，乱序回复正确；跨线程代回被拒绝 |
-| [5.3](../05-threading/5.3-service-threads.md) | 两个服务线程如何共用 fd 等待并处理任务？ | service_threads_demo | 两线程先在 READ 中睡眠，再完成两轮四笔调用 |
+| [5.1](../05-threading/5.1-binder-thread.md) | 同一fd中的线程如何区分？ | thread_test --demo | 共享proc与不同线程身份 |
+| [5.2](../05-threading/5.2-service-threads.md) | 两个服务线程如何等待与领取？ | service_threads_demo | 先睡眠等待，再完成两轮四笔请求 |
+| [5.3](../05-threading/5.3-thread-replies.md) | 两个调用线程如何共用fd？ | thread_reply_test --demo | 倒序回复，独立回复位置 |
+| [5.4](../05-threading/5.4-thread-todo.md) | 回复为何不再需要公开id？ | thread_reply_test --demo | 服务线程绑定事务并找到原caller |
 
 ## 第 6 篇
 
@@ -87,7 +86,7 @@
 
 ## 主实验与额外回归
 
-带 `--demo` 的程序只执行正文正常路径；不带参数仍执行完整验收。管道、fork 和 barrier 用来稳定安排实验先后，不属于 Binder 协议。4.4 为证明“先排队再领取”需要观察线程阻塞，完整要求见正文。
+带 `--demo` 的程序只执行正文正常路径；不带参数仍执行完整验收。管道、fork 和 barrier 用来稳定安排实验先后，不属于 Binder 协议。5.2 为证明“服务线程先等待，再提交请求”需要观察线程阻塞，完整要求见正文。
 
 线程和槽位实验中的一字节负载只是区分请求的标记，不是在重新设计 Parcel。服务名、对象和 fd 的主实验沿用已有 Parcel/object_parcel；边界测试可以手工构造无效字节包，不能把这些反例当作业务编码方式。
 

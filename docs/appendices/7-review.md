@@ -22,7 +22,7 @@
 3. 删除公开的全局寻址旁路，使普通调用必须经过调用方 Ref 表。内部仍可用 ID 关联 Node；内部存储方式和公开寻址协议是两个问题。
 4. 不能。普通整数不会触发对象转换。应返回 HANDLE 对象，由驱动解析管理者 Ref，并在客户端上下文创建或复用其自己的 Ref。
 5. 能。回复归原调用线程，与普通请求资格无关；其他线程不能读取该线程的 pending_reply。
-6. 先返回 BR_REPLY；读取映射数据后发送 BC_FREE_REPLY，再 READ 领取进程请求，处理完用请求 id 提交 BC_REPLY。
+6. 先返回 BR_REPLY；读取映射数据后发送 BC_FREE_REPLY，再 READ 领取进程请求，处理完由领取请求的线程提交 BC_REPLY，驱动沿 current_transaction/caller 找到调用者。
 7. ENTER/EXIT 改变当前线程接收普通请求的资格；THREAD_EXIT 显式清理线程记录和残留回复；FREE_REPLY 只释放当前回复缓冲区与未安装的文件引用，不替应用关闭已安装 fd。Linux 线程由用户态自行创建。
 8. 自动 Node 创建、handle 寻址、looper 和统一 BR 分发已经相近；本章仍分离 WRITE/READ、每次固定一包、同步 WRITE 等待、固定槽位和教学对象描述符。未实现原生事务栈、引用计数、allocator、自动线程池扩容、oneway、安全策略及死亡通知，不能与 AOSP 二进制协议混用。
 9. 写阶段只提交并入队。读阶段发现线程事务完成后，取走其回复工作，复制进回复映射并释放事务槽，再交付 BR_REPLY；回复映射位置保留至 FREE_REPLY。

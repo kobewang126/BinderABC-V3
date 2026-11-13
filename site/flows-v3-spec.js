@@ -26,45 +26,35 @@ export const v3Specs = [
     u('tests/transfer_test.c','transact(fd, &call, &result)','接收方 B'), k('transaction.object_cookie = nodes[i].cookie','接收方 B 线程'),
     u('tests/transfer_test.c','put32(reply.transaction.data, 99)','对象提供者'), u('tests/transfer_test.c','get32(mapping) == 99','接收方 B')]),
   s('docs/04-concurrency/4.1-binder-proc.md', 'concept', [c('static int mini_binder_open'),c('struct mini_binder_proc {'),c('struct mini_binder_ref {'),c('struct mini_binder_node {'),c('struct mini_binder_proc *owner;'),cu('userspace/object_server.c','objects[i].invoke')]),
-  s('docs/04-concurrency/4.2-service-manager.md', 'sequence', [
+  s('docs/04-concurrency/4.4-service-manager.md', 'sequence', [
     u('tests/manager_test.c','MINI_BINDER_REGISTER_MANAGER) == 0','管理者'), u('tests/manager_test.c','req.transaction.code = 1;','服务端'),
     k('ret = translate_objects(file, server_ctx','服务端线程'), u('tests/manager_test.c','req.transaction.code = 2; req.transaction.size = put_name(req.transaction.data, "calculator")','客户端'),
     k('static long receive_request','管理者线程'), u('tests/manager_test.c','object_parcel_write(&response, OBJECT_PARCEL_HANDLE, saved)','管理者'),
     k('ret = translate_objects(slot->receiver, client_ctx','客户端线程'), u('tests/manager_test.c','req.transaction.target_handle = 1; req.transaction.code = 3','客户端'),
     k('transaction.object_cookie = nodes[i].cookie','客户端线程')]),
-  s('docs/04-concurrency/4.3-binder-thread.md', 'concept', [c('struct mini_binder_proc {'),c('struct mini_binder_thread {'),c('struct mini_binder_thread threads[8]'),c('struct mini_binder_ref refs[')]),
-  s('docs/04-concurrency/4.4-proc-todo.md', 'sequence', [
-    u('tests/workers_test.c','ioctl(fd, MINI_BINDER_WRITE, &req)','客户端'), k('list_add_tail(&slot->work','客户端线程'), k('wake_up_interruptible_all(&server_wait)','客户端线程', 1),
-    u('tests/workers_test.c','ioctl(worker->fd, MINI_BINDER_READ, &req)','服务线程'), k('list_first_entry(&ctx->todo','服务线程'), k('delivered.id = slot->request.id','服务线程'),
-    u('tests/workers_test.c','ioctl(worker->fd, MINI_BINDER_WRITE, &reply)','服务线程'), k('wake_up_interruptible(&client_wait)','服务线程', 1)]),
-  s('docs/04-concurrency/4.5-ref-back-to-owner.md', 'sequence', [
+  s('docs/05-threading/5.1-binder-thread.md', 'concept', [c('struct mini_binder_proc {'),c('struct mini_binder_thread {'),c('struct mini_binder_thread threads[8]'),c('struct mini_binder_ref refs[')]),
+  s('docs/05-threading/5.2-service-threads.md', 'sequence', [
+    u('tests/service_threads_demo.c','ioctl(caller->fd, MINI_BINDER_WRITE, &request)','客户端'), k('list_add_tail(&slot->work','客户端线程'), k('wake_up_interruptible_all(&server_wait)','客户端线程', 1),
+    u('tests/service_threads_demo.c','read_request(worker->fd, &event)','服务线程'), k('list_first_entry(&ctx->todo','服务线程'), k('delivered.id = slot->request.id','服务线程'),
+    u('tests/service_threads_demo.c','ioctl(worker->fd, MINI_BINDER_WRITE, &reply)','服务线程'), k('wake_up_interruptible(&client_wait)','服务线程', 1)]),
+  s('docs/04-concurrency/4.2-ref-back-to-owner.md', 'sequence', [
     u('tests/return_to_owner_test.c','write_object(&call.transaction, MINI_BINDER_OBJECT_LOCAL','拥有者 A'), k('static long translate_objects','拥有者 A 线程'),
     u('tests/return_to_owner_test.c','write_object(&reply.transaction, MINI_BINDER_OBJECT_HANDLE','进程 B'), k('if (nodes[j].owner == receiver)','拥有者 A 线程'),
     u('tests/return_to_owner_test.c','received.type == OBJECT_PARCEL_LOCAL && received.value == cookie','拥有者 A'), u('tests/return_to_owner_test.c','write_object(&call.transaction, MINI_BINDER_OBJECT_HANDLE','进程 B'),
     k('if (nodes[j].owner == receiver)','进程 B 线程'), u('tests/return_to_owner_test.c','returned->invoke(21)','拥有者 A'),
     u('tests/return_to_owner_test.c','put32(reply.transaction.data, (uint32_t)returned->invoke(21))','拥有者 A'), u('tests/return_to_owner_test.c','get32(mapping) == 42','进程 B')]),
-  s('docs/05-threading/5.1-thread-replies.md', 'sequence', [
+  s('docs/05-threading/5.3-thread-replies.md', 'sequence', [
     u('tests/thread_reply_test.c','ioctl(worker->fd, MINI_BINDER_WRITE, &call)','客户端线程 A'), u('tests/thread_reply_test.c','ioctl(worker->fd, MINI_BINDER_WRITE, &call)','客户端线程 B'),
     u('tests/thread_reply_test.c','read_request(fd, &received[i])','服务端线程'), u('tests/thread_reply_test.c','for (int i = 1; i >= 0; i--)','服务端线程'),
     u('tests/thread_reply_test.c','ioctl(fd, MINI_BINDER_WRITE, &reply)','服务端线程'), k('transaction.reply_offset =','客户端线程 B'), k('transaction.reply_offset =','客户端线程 A'),
     u('tests/thread_reply_test.c','ioctl(worker->fd, MINI_BINDER_WRITE, &release)','客户端线程 A'), u('tests/thread_reply_test.c','ioctl(worker->fd, MINI_BINDER_WRITE, &release)','客户端线程 B')]),
-  s('docs/05-threading/5.2-thread-todo.md', 'sequence', [
+  s('docs/05-threading/5.4-thread-todo.md', 'sequence', [
     u('tests/thread_reply_test.c','ioctl(worker->fd, MINI_BINDER_WRITE, &call)','调用线程'),
     u('tests/thread_reply_test.c','receive(group->fd, &event)','服务线程'),
     k('thread->current_transaction = slot','服务线程'),
     u('tests/thread_reply_test.c','exchange_command(group->fd, &reply, NULL) == 0','服务线程'),
     u('tests/thread_reply_test.c','read_reply(worker->fd, &reply)','调用线程')]),
-  s('docs/05-threading/5.3-service-threads.md', 'sequence', [
-    u('tests/service_threads_demo.c','read_request(worker->fd, &event)','服务线程 A'),
-    u('tests/service_threads_demo.c','read_request(worker->fd, &event)','服务线程 B'),
-    u('tests/service_threads_demo.c','ioctl(caller->fd, MINI_BINDER_WRITE, &request)','调用线程'),
-    k('thread->current_transaction = slot','服务线程 A'),
-    k('thread->current_transaction = slot','服务线程 B'),
-    u('tests/service_threads_demo.c','worker->result[round] = worker->input[round] + 1','服务线程 A'),
-    u('tests/service_threads_demo.c','worker->result[round] = worker->input[round] + 1','服务线程 B'),
-    u('tests/service_threads_demo.c','ioctl(worker->fd, MINI_BINDER_WRITE, &reply)','服务线程 A'),
-    u('tests/service_threads_demo.c','ioctl(worker->fd, MINI_BINDER_WRITE, &reply)','服务线程 B')]),
-  s('docs/04-concurrency/4.6-client-objects.md', 'sequence', [
+  s('docs/04-concurrency/4.3-client-objects.md', 'sequence', [
     u('tests/role_test.c','ioctl(fd, MINI_BINDER_CREATE_NODE, &node)','进程 A', 1), u('tests/role_test.c','ioctl(fd, MINI_BINDER_CREATE_NODE, &node)','进程 B'),
     u('tests/role_test.c','write_object(&call.transaction, OBJECT_PARCEL_LOCAL','进程 A'), k('ret = translate_objects(file, server_ctx','进程 A 线程'),
     u('tests/role_test.c','ioctl(fd, MINI_BINDER_WRITE, &reply)','进程 B'), k('client_ctx->pending_reply = transaction','进程 A 线程'),

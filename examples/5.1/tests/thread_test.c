@@ -5,10 +5,13 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <string.h>
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <mini_binder.h>
+
+static int demo;
 
 struct argument { int fd; uint32_t id; };
 static void *worker(void *data)
@@ -25,12 +28,14 @@ static void *overflow(void *data)
     assert(ioctl(arg->fd, MINI_BINDER_GET_THREAD_ID, &arg->id) == -1 && errno == ENOSPC);
     return NULL;
 }
-int main(void)
+int main(int argc, char **argv)
 {
+    demo = argc == 2 && strcmp(argv[1], "--demo") == 0;
+    assert(argc == 1 || demo);
     int fd = open("/dev/mini_binder", O_RDWR), second, shared;
     pthread_t threads[2];
     struct argument args[2];
-    uint32_t main_id, shared_id, other_id;
+    uint32_t main_id, shared_id, other_id, worker_ids[2];
     assert(fd >= 0);
     assert(ioctl(fd, MINI_BINDER_GET_THREAD_ID, &main_id) == 0 && main_id == 1);
     shared = dup(fd); assert(shared >= 0);
@@ -40,13 +45,18 @@ int main(void)
     for (int i = 0; i < 2; i++) { args[i].fd = fd; assert(pthread_create(&threads[i], NULL, worker, &args[i]) == 0); }
     for (int i = 0; i < 2; i++) assert(pthread_join(threads[i], NULL) == 0);
     assert(args[0].id != args[1].id && args[0].id != main_id && args[1].id != main_id);
-    for (int i = 0; i < 5; i++) {
-        assert(pthread_create(&threads[0], NULL, worker, &args[0]) == 0);
+    worker_ids[0] = args[0].id; worker_ids[1] = args[1].id;
+    if (!demo) {
+        for (int i = 0; i < 5; i++) {
+            assert(pthread_create(&threads[0], NULL, worker, &args[0]) == 0);
+            assert(pthread_join(threads[0], NULL) == 0);
+        }
+        assert(pthread_create(&threads[0], NULL, overflow, &args[0]) == 0);
         assert(pthread_join(threads[0], NULL) == 0);
     }
-    assert(pthread_create(&threads[0], NULL, overflow, &args[0]) == 0);
-    assert(pthread_join(threads[0], NULL) == 0);
     close(second); close(shared); close(fd);
+    printf("proc A: main thread %u, workers %u and %u\n", main_id, worker_ids[0], worker_ids[1]);
+    printf("dup A: thread %u; proc B: thread %u\n", shared_id, other_id);
     puts("one proc, distinct thread records; dup shares proc passed");
     return 0;
 }

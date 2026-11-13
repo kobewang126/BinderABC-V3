@@ -47,7 +47,7 @@ static void receiver(int ready_fd)
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
     assert(read_reply(fd, &result) == 0);
-    assert(result.transaction.size == 4 && get32(mapping + result.transaction.reply_offset) == 77);
+    assert(result.transaction.size == 4 && get32(mapping + 2 * MINI_BINDER_MAX_DATA) == 77);
     free_reply(fd);
     munmap((void *)mapping, (size_t)sysconf(_SC_PAGESIZE));
     close(fd);

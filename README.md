@@ -58,27 +58,24 @@
 
 本篇先介绍多服务端和对象转交；服务发现留待后续章节。
 
-### 4 第四篇：进程、服务发现与线程
+### 4 第四篇：上下文、对象与服务发现
 
-本篇依次整理上下文、服务发现和请求领取；4.5 补全引用返回拥有者的对象转换，4.6 撤掉固定角色，让同一上下文既能调用也能提供对象。
+先整理上下文，再补全对象往返和双向提供对象，最后通过管理者完成注册、查询和按 handle 调用。本篇不引入线程表与 todo 队列。
 
-- [第 4.1 章 一个 Binder 上下文有哪些对象？](docs/04-concurrency/4.1-binder-proc.md)
-- [第 4.2 章 从哪里找到服务？](docs/04-concurrency/4.2-service-manager.md)
-- [第 4.3 章 一个 Binder 上下文中的多个线程](docs/04-concurrency/4.3-binder-thread.md)
-- [第 4.4 章 让服务线程领取待办事务](docs/04-concurrency/4.4-proc-todo.md)
-- [第 4.5 章 把引用传回对象拥有者](docs/04-concurrency/4.5-ref-back-to-owner.md)
-- [第 4.6 章 客户端也可以提供 Binder 对象](docs/04-concurrency/4.6-client-objects.md)
+- [第 4.1 章 一个 Binder 上下文有哪些资源？](docs/04-concurrency/4.1-binder-proc.md)
+- [第 4.2 章 把引用传回对象拥有者](docs/04-concurrency/4.2-ref-back-to-owner.md)
+- [第 4.3 章 同一个上下文既能调用，也能提供对象](docs/04-concurrency/4.3-client-objects.md)
+- [第 4.4 章 客户端从哪里找到服务？](docs/04-concurrency/4.4-service-manager.md)
 - [第四篇自测](docs/appendices/4-review.md)
 
-第三、四篇先运行各章正文中的主实验；额外测试源码保留在对应 `examples/<章号>/tests/` 中。
+### 5 第五篇：多个线程怎样协作完成调用？
 
-### 5 第五篇：线程与同步调用
+先区分线程，再让服务线程从共同队列领取任务，随后解决调用线程的回复隔离，最后把服务线程和原调用线程关联起来。5.3 仍保留事务 id，5.4 删除公开事务 id；各章源码独立，使用本章驱动与程序。
 
-5.1 讲调用线程的回复隔离，暂时保留事务 id；5.2 把服务线程与待回复事务绑定，删除公开事务 id；5.3 用两个服务线程共用 fd 的正常实验串起等待、领取和回复。各章沿用 4.6 的双向上下文，不引入等待中的嵌套调用。
-
-- [第 5.1 章 同一个 Binder 上下文中的两个调用线程](docs/05-threading/5.1-thread-replies.md)
-- [第 5.2 章 服务线程怎样找到该回复的调用线程？](docs/05-threading/5.2-thread-todo.md)
-- [第 5.3 章 两个服务线程怎样共同处理请求？](docs/05-threading/5.3-service-threads.md)
+- [第 5.1 章 多个线程怎样共用一个 Binder 上下文？](docs/05-threading/5.1-binder-thread.md)
+- [第 5.2 章 两个服务线程怎样等待和领取任务？](docs/05-threading/5.2-service-threads.md)
+- [第 5.3 章 两个调用线程怎样分别收到回复？](docs/05-threading/5.3-thread-replies.md)
+- [第 5.4 章 服务线程怎样找到该回复的调用线程？](docs/05-threading/5.4-thread-todo.md)
 - [第五篇自测](docs/appendices/5-review.md)
 
 ### 6 第六篇：Binder 中的文件描述符
@@ -102,6 +99,6 @@
 
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
-各章的实际验证环境和覆盖范围以对应正文为准。第四篇 4.1 至 4.5 已在 Ubuntu 24.04 ARM64、Linux 6.8.0-147 上编译并运行对应实验。
+各章的实际验证环境和覆盖范围以对应正文为准。本轮已在 Ubuntu 24.04 ARM64、Linux 6.8.0-147 上重新构建并验证 4.1～4.4、5.1～5.4、6.1～6.4、7.1～7.4；7.5 复用 7.4 实现。覆盖范围与原始输出见[验证记录](validation/README.md)。
 
 本轮教材衔接调整的范围、实际运行输出和未覆盖边界见[验证记录](validation/README.md)。维护源码后可运行 `python3 tools/check_tutorial.py`，独立检查章节片段、行号与本地链接，无需生成网页。

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
-#include <pthread.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
@@ -21,22 +20,6 @@ static int wait_ok(pid_t pid)
     return waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
-struct service { int fd, notify; };
-static void *receive_and_wait(void *data)
-{
-    struct service *s = data;
-    struct mini_binder_command event = {0};
-#if MINI_BINDER_PROTOCOL_VERSION >= 703
-    struct mini_binder_command enter = {.cmd = MINI_BC_ENTER_LOOPER};
-    if (exchange_command(s->fd, &enter, NULL)) _exit(1);
-#elif MINI_BINDER_PROTOCOL_VERSION >= 406
-    event.cmd = MINI_READ_REQUEST;
-#endif
-    if (exchange_command(s->fd, NULL, &event) || event.cmd != MINI_BR_TRANSACTION ||
-        write(s->notify, "R", 1) != 1) _exit(1);
-    for (;;) pause();
-    return NULL;
-}
 int main(void)
 {
     int ready[2], received[2];
@@ -55,18 +38,22 @@ int main(void)
         return 1;
     }
     if (server == 0) {
+        struct mini_binder_command req = {0};
         int fd = open("/dev/mini_binder", O_RDONLY);
         long page = sysconf(_SC_PAGESIZE);
-        pthread_t workers[2];
-        struct service service = {.fd = fd, .notify = received[1]};
-        close(ready[0]); close(received[0]);
-        if (fd < 0 || page <= 0) _exit(1);
-        if (ioctl(fd, MINI_BINDER_REGISTER_MANAGER) ||
-            mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0) == MAP_FAILED) _exit(1);
-        for (int j = 0; j < 2; j++)
-            if (pthread_create(&workers[j], NULL, receive_and_wait, &service)) _exit(1);
-        if (write(ready[1], "R", 1) != 1) _exit(1);
-        for (;;) pause();
+        close(ready[0]);
+        close(received[0]);
+        if (fd < 0 || page <= 0 ||
+            ioctl(fd, MINI_BINDER_REGISTER_MANAGER) ||
+            mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0) == MAP_FAILED ||
+            write(ready[1], "R", 1) != 1 ||
+            exchange_command(fd, NULL, &req) || req.cmd != MINI_BR_TRANSACTION ||
+            write(received[1], "R", 1) != 1 ||
+            exchange_command(fd, NULL, &req) || req.cmd != MINI_BR_TRANSACTION ||
+            write(received[1], "R", 1) != 1)
+            _exit(1);
+        for (;;)
+            pause();
     }
     close(ready[1]);
     close(received[1]);

@@ -72,6 +72,7 @@ static void receiver(int ready)
     call.transaction.target_handle = (uint32_t)received.value;
     assert(call.transaction.target_handle == 1);
 
+    reply.transaction.id = req.transaction.id;
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     call.transaction.size = 4; put32(call.transaction.data, 7);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
@@ -107,6 +108,7 @@ int main(void)
     payload = (const unsigned char *)(uintptr_t)req.transaction.data_address;
      reply.transaction.size = 4;
     put32(reply.transaction.data, (uint32_t)local.invoke((int)get32(payload)));
+    reply.transaction.id = req.transaction.id;
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(fd);

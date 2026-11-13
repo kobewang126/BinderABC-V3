@@ -79,7 +79,7 @@ int main(void)
     second = start_client(0);
     assert(read_request(fd, &incoming) == 0);
     assert(incoming.transaction.size == 1 && *(unsigned char *)(uintptr_t)incoming.transaction.data_address == 2);
-
+    reply.transaction.id = incoming.transaction.id;
     reply.transaction.size = 1; reply.transaction.data[0] = 42;
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     assert(waitpid(second, &status, 0) == second && WIFEXITED(status) && WEXITSTATUS(status) == 0);
