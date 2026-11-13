@@ -16,9 +16,21 @@ if (sourceDownload.suggestedFilename() !== 'BinderABC-V3-source.zip' || await so
 }
 const counts = await page.evaluate(() => ({ chapters: window.BINDERABC_DATA.chapters.filter(ch => !ch.path.includes('/appendices/')).length, entries: window.BINDERABC_DATA.chapters.length }));
 if (counts.chapters !== 39 || counts.entries !== 49) throw new Error(`Incomplete navigation: ${JSON.stringify(counts)}`);
-// 所有章节共用正文侧边目录；校验展开、收起和标题定位。
+// 所有章节共用顶部悬浮目录；展开、收起不能改变正文或滚动位置。
+async function articleLayout() {
+  return page.evaluate(() => {
+    const rect = document.getElementById('article').getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, scroll: document.getElementById('reader').scrollTop };
+  });
+}
+function unchangedLayout(before, after, index) {
+  if (Object.keys(before).some(key => Math.abs(before[key] - after[key]) > 1)) {
+    throw new Error(`Outline moved article ${index}: ${JSON.stringify({ before, after })}`);
+  }
+}
 for (let index = 0; index < counts.entries; index++) {
   await page.locator('.chapter-link').nth(index).click();
+  await page.evaluate(() => document.getElementById('reader').scrollTo({ top: 0, behavior: 'instant' }));
   const headings = await page.locator('#article h2[id], #article h3[id]').count();
   if (await page.locator('#section-list a').count() !== headings) throw new Error(`Outline count: ${index}`);
   if (await page.locator('#navigation #section-list').count()) throw new Error('Outline remained in chapter sidebar');
@@ -26,12 +38,17 @@ for (let index = 0; index < counts.entries; index++) {
   const details = page.locator('#chapter-outline');
   if (await details.evaluate(node => node.open)) await details.locator('summary').click();
   if (await page.locator('#section-list').isVisible()) throw new Error('Outline did not collapse');
+  const before = await articleLayout();
   await details.locator('summary').click();
   if (!(await page.locator('#section-list').isVisible())) throw new Error('Outline did not expand');
+  unchangedLayout(before, await articleLayout(), index);
+  await details.locator('summary').click();
+  unchangedLayout(before, await articleLayout(), index);
+  await details.locator('summary').click();
   const target = await page.locator('#section-list a').last().getAttribute('href');
   if (!(await page.locator(target).count())) throw new Error(`Outline missing heading: ${index}`);
   await page.locator('#section-list a').last().click();
-  await details.locator('summary').click();
+  if (await details.evaluate(node => node.open)) throw new Error('Outline did not close after navigation');
 }
 const specs = await page.evaluate(() => window.BINDERABC_DATA.extraFlows.map(flow => ({ path: flow.chapter, count: flow.steps.length, diagram: flow.diagram })));
 for (const spec of specs) {

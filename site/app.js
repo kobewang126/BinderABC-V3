@@ -242,7 +242,7 @@ function outline() {
     heading.id = `section-${i}`;
     const a = document.createElement('a'); a.className = `outline-link${heading.tagName === 'H3' ? ' sub' : ''}`;
     a.href = `#section-${i}`; a.textContent = heading.textContent;
-    a.onclick = e => { e.preventDefault(); closePanels(); heading.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    a.onclick = e => { e.preventDefault(); closePanels(); $('chapter-outline').open = false; heading.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
     list.append(a);
   });
 }
