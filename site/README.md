@@ -29,3 +29,5 @@ lark-cli apps +release-get --app-id app_17hpxzfrv5m --release-id <release_id> --
 ```
 
 发布地址：https://xcn2dmpqmkrl.feishu.cn/page/R8R6mdCZPdTfjwa7neTcxKOnngc 。保持应用 ID 不变即可更新原链接，不需要新建应用。
+
+所有章节的“本章内容”目录位于正文右侧，默认收起，点击展开后可跳转到本章小节；左侧只保留全书章节目录。第 7.5 章为驱动接口总览，源码和模拟终端复用 7.4，不生成重复章节源码。

@@ -63,7 +63,7 @@ const extraFlows = v3Specs.map(spec => {
     events = [...nodes.values()];
   }
   if (events.length !== spec.refs.length) throw new Error(`Flow step count mismatch: ${spec.path}: ${events.length} vs ${spec.refs.length}`);
-  const part = spec.path.match(/\/(\d+\.\d+)-/)?.[1];
+  const part = spec.sourceChapter || spec.path.match(/\/(\d+\.\d+)-/)?.[1];
   const steps = spec.refs.map(([source, needle, context, occurrence = 0], index) => {
     const file = `examples/${part}/${source}`, lines = files[file]?.split('\n');
     const positions = lines?.flatMap((line, lineIndex) => line.includes(needle) ? [lineIndex] : []) ?? [];

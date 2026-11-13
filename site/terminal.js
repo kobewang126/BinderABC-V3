@@ -429,7 +429,8 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   sessions.forEach(session => session.lines.push({ text: 'BinderABC 模拟终端 · 输出为示例回放，未执行真实命令', kind: 'info' }));
   render();
   return { setChapter(path) {
-    const chapter = path.split('/').at(-1).match(/^(\d+\.\d+)-/)?.[1];
+    let chapter = path.split('/').at(-1).match(/^(\d+\.\d+)-/)?.[1];
+    if (chapter === '7.5') chapter = '7.4';
     chapterDir = !chapter || ['0.1', '0.2', '0.3', '1.1'].includes(chapter) ? '/examples' : `/examples/${chapter}`;
     $('terminal-chapter').title = `进入当前章节目录 ${chapterDir}`;
   } };

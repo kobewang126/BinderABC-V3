@@ -15,7 +15,24 @@ if (sourceDownload.suggestedFilename() !== 'BinderABC-V3-source.zip' || await so
   throw new Error('Source ZIP download failed');
 }
 const counts = await page.evaluate(() => ({ chapters: window.BINDERABC_DATA.chapters.filter(ch => !ch.path.includes('/appendices/')).length, entries: window.BINDERABC_DATA.chapters.length }));
-if (counts.chapters !== 38 || counts.entries !== 48) throw new Error(`Incomplete navigation: ${JSON.stringify(counts)}`);
+if (counts.chapters !== 39 || counts.entries !== 49) throw new Error(`Incomplete navigation: ${JSON.stringify(counts)}`);
+// 所有章节共用正文侧边目录；校验展开、收起和标题定位。
+for (let index = 0; index < counts.entries; index++) {
+  await page.locator('.chapter-link').nth(index).click();
+  const headings = await page.locator('#article h2[id], #article h3[id]').count();
+  if (await page.locator('#section-list a').count() !== headings) throw new Error(`Outline count: ${index}`);
+  if (await page.locator('#navigation #section-list').count()) throw new Error('Outline remained in chapter sidebar');
+  if (!headings) continue;
+  const details = page.locator('#chapter-outline');
+  if (await details.evaluate(node => node.open)) await details.locator('summary').click();
+  if (await page.locator('#section-list').isVisible()) throw new Error('Outline did not collapse');
+  await details.locator('summary').click();
+  if (!(await page.locator('#section-list').isVisible())) throw new Error('Outline did not expand');
+  const target = await page.locator('#section-list a').last().getAttribute('href');
+  if (!(await page.locator(target).count())) throw new Error(`Outline missing heading: ${index}`);
+  await page.locator('#section-list a').last().click();
+  await details.locator('summary').click();
+}
 const specs = await page.evaluate(() => window.BINDERABC_DATA.extraFlows.map(flow => ({ path: flow.chapter, count: flow.steps.length, diagram: flow.diagram })));
 for (const spec of specs) {
   const index = await page.evaluate(path => window.BINDERABC_DATA.chapters.findIndex(chapter => chapter.path === path), spec.path);
@@ -111,6 +128,14 @@ if (!(await page.locator('#terminal-output').innerText()).includes('getService(c
 await page.locator('#terminal-input').press('Control+c');
 await command('sudo rmmod mini_binder');
 await page.screenshot({ path: '/tmp/binderabc-v3-site.png' });
+const overviewIndex = await page.evaluate(() => window.BINDERABC_DATA.chapters.findIndex(ch => ch.path.endsWith('7.5-driver-api.md')));
+await page.locator('.chapter-link').nth(overviewIndex).click();
+await page.locator('#terminal-chapter').click();
+await command('pwd');
+if (!(await page.locator('#terminal-output').innerText()).includes('/examples/7.4')) throw new Error('Overview must reuse 7.4 sources');
+await page.locator('#chapter-outline summary').click();
+await page.screenshot({path:'/tmp/binderabc-v3-overview-outline.png'});
+await page.locator('#chapter-outline summary').click();
 await page.locator('.chapter-link').filter({ hasText: '第五篇自测' }).click();
 if (!(await page.locator('#article').innerText()).includes('参考答案')) throw new Error('Missing review answers');
 if (errors.length) throw new Error(errors.join('\n'));

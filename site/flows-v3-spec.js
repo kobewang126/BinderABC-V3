@@ -114,5 +114,10 @@ export const v3Specs = [
     u('userspace/calculator_client.c','uint32_t handle = (uint32_t)object.value','Client'),
     u('userspace/calculator_client.c','call.transaction.target_handle = handle','Client'), k('static long receive_request','Server 线程'),
     u('userspace/calculator_server.c','uint32_t result = tx->code','Server'),
-    u('userspace/calculator_client.c','remote %s(7, 3) = %u','Client')])
+    u('userspace/calculator_client.c','remote %s(7, 3) = %u','Client')]),
+  {...s('docs/07-protocol/7.5-driver-api.md', 'concept', [
+    c('file->private_data = ctx'), c('struct mini_binder_proc {'),
+    c('struct mini_binder_thread {'), c('struct mini_binder_ref {'),
+    c('struct mini_binder_node {'), c('struct transaction_slot {'),
+    c('void *buffer;')]), sourceChapter: '7.4'}
 ];

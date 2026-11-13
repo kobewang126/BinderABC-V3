@@ -83,6 +83,7 @@
 | [7.2](../07-protocol/7.2-handle-routing.md) | 普通调用是否还需要公开 Node ID？ | object_demo（manager_test 为额外验收） | 只使用管理入口 0 和本地 handle，功能仍完整 |
 | [7.3](../07-protocol/7.3-looper-events.md) | 同一 READ 怎样区分请求和回复？ | looper_demo | 普通线程得到 BR_REPLY；进入 looper 后得到 BR_TRANSACTION |
 | [7.4](../07-protocol/7.4-write-read.md) | 怎样统一通信入口并完成完整服务流程？ | 三个独立程序 | 注册 calculator、查询 handle、调用加减并得到结果 |
+| [7.5](../07-protocol/7.5-driver-api.md) | 怎样从整体理解最终驱动接口与结构？ | 复用 7.4 三个独立程序 | 区分 ioctl、cmd、code，追踪 handle 到 Node 与原调用线程 |
 
 ## 主实验与额外回归
 

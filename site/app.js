@@ -237,6 +237,7 @@ function sourceReferences() {
 }
 function outline() {
   const list = $('section-list'); list.replaceChildren();
+  $('chapter-outline').hidden = !$('article').querySelector('h2,h3');
   $('article').querySelectorAll('h2,h3').forEach((heading, i) => {
     heading.id = `section-${i}`;
     const a = document.createElement('a'); a.className = `outline-link${heading.tagName === 'H3' ? ' sub' : ''}`;

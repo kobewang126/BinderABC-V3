@@ -95,9 +95,10 @@
 - [第 7.2 章 只用 handle 寻址服务对象](docs/07-protocol/7.2-handle-routing.md)
 - [第 7.3 章 进入 looper，用同一个 READ 接收事件](docs/07-protocol/7.3-looper-events.md)
 - [第 7.4 章 统一通信入口，完成一次服务调用](docs/07-protocol/7.4-write-read.md)
+- [第 7.5 章 驱动接口与数据结构总览](docs/07-protocol/7.5-driver-api.md)
 - [第七篇自测](docs/appendices/7-review.md)
 
-本篇编写至 7.4：自动创建 Node、统一 handle 寻址与事件读取，最终用 WRITE_READ 串起三个独立程序的注册、查询与调用。每方向仍只交换一个命令包，不宣称与 AOSP 协议二进制兼容。
+本篇编写至 7.5：自动创建 Node、统一 handle 寻址与事件读取，最终用 WRITE_READ 串起三个独立程序的注册、查询与调用。7.5 汇总最终 ioctl、BC/BR、事务结构与内核对象关系，复用 7.4 源码。每方向仍只交换一个命令包，不宣称与 AOSP 协议二进制兼容。
 
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
