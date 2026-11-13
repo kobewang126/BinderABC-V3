@@ -20,7 +20,7 @@ for (const chapter of exampleEntries.filter(entry => entry.isDirectory() && /^\d
     filter: source => !source.split(path.sep).some(part => part === 'build' || part === '.git') && !/\.(?:o|ko|mod|cmd)$/.test(source) && !/\/(?:Module\.symvers|modules\.order)$/.test(source)
   });
 }
-for (const directory of ['00-preparation', '01-rpc', '02-transaction', '03-objects', '04-concurrency', '05-threading', '06-file-descriptors', '07-protocol', 'appendices']) {
+for (const directory of ['00-preparation', '01-rpc', '02-transaction', '03-objects', '04-concurrency', '05-threading', '06-file-descriptors', '07-protocol', '08-framework', 'appendices']) {
   await cp(path.join(root, 'docs', directory), path.join(out, 'docs', directory), { recursive: true });
 }
 await cp(path.join(root, 'README.md'), path.join(out, 'README.md'));
@@ -33,7 +33,7 @@ await cp(path.join(site, 'flow.css'), path.join(out, 'flow.css'));
 const readme = await readFile(path.join(root, 'README.md'), 'utf8');
 const chapters = [];
 for (const match of readme.matchAll(/\[([^\]]+)\]\((docs\/[^)]+\.md)\)/g)) {
-  if (!/^docs\/(?:00-preparation|01-rpc|02-transaction|03-objects|04-concurrency|05-threading|06-file-descriptors|07-protocol)\//.test(match[2]) && !/^docs\/appendices\/(?:[0-7]-review|reading-guide|protocol-evolution)\.md$/.test(match[2])) continue;
+  if (!/^docs\/(?:00-preparation|01-rpc|02-transaction|03-objects|04-concurrency|05-threading|06-file-descriptors|07-protocol|08-framework)\//.test(match[2]) && !/^docs\/appendices\/(?:[0-8]-review|reading-guide|protocol-evolution)\.md$/.test(match[2])) continue;
   if (chapters.some(chapter => chapter.path === match[2])) continue;
   chapters.push({ title: match[1], path: match[2], markdown: await readFile(path.join(root, match[2]), 'utf8') });
 }

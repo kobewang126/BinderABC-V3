@@ -120,5 +120,38 @@ export const v3Specs = [
     c('struct mini_binder_thread {'), c('struct mini_binder_ref {'),
     c('struct mini_binder_node {'), c('struct transaction_slot {'),
     c('struct transaction_slot *current_transaction;'), c('struct mini_binder_thread *caller;'),
-    c('void *buffer;')]), sourceChapter: '7.4'}
+    c('void *buffer;')]), sourceChapter: '7.4'},
+  s('docs/08-framework/8.1-bbinder.md', 'concept', [
+    u('userspace/local_demo.cpp', 'IBinder &object = calculator;', '调用线程'),
+    u('framework/binder.h', 'class IBinder {', '概念示意'),
+    u('framework/binder.cpp', 'status_t BBinder::transact', '调用线程'),
+    u('framework/calculator.h', 'status_t onTransact', '调用线程'),
+    u('framework/binder.cpp', 'parcel Parcel::view()', '调用线程')]),
+  s('docs/08-framework/8.2-process-state.md', 'concept', [
+    u('framework/process_demo.cpp', 'std::thread threads[2];', '用户线程 A'),
+    u('framework/binder.cpp', 'ProcessState::self()', '概念示意'),
+    u('framework/process_demo.cpp', 'connections[i] = ProcessState::self()', '用户线程 B'),
+    u('framework/binder.cpp', 'ProcessState::ProcessState()', '首个初始化线程'),
+    c('struct mini_binder_proc {'),
+    u('framework/binder.cpp', 'ProcessState::findObject', '调用线程')]),
+  s('docs/08-framework/8.3-ipc-thread-state.md', 'sequence', [
+    u('framework/framework_client.cpp', 'IPCThreadState::self()->transact(handle', '客户端线程'),
+    u('framework/binder.cpp', 'talkWithDriver(&out, &event)', '客户端线程'),
+    k('static long receive_request', '服务端线程'),
+    u('framework/binder.cpp', 'object->transact(tx.code', '服务端线程'),
+    u('framework/calculator.h', 'return reply->writeU32', '服务端线程'),
+    u('framework/binder.cpp', 'out.transaction.status = status;', '服务端线程'),
+    u('framework/binder.cpp', 'return talkWithDriver(&out, nullptr);', '服务端线程'),
+    u('framework/binder.cpp', 'reply->importData', '客户端线程'),
+    u('framework/binder.cpp', 'release.cmd = MINI_BC_FREE_REPLY;', '客户端线程'),
+    u('framework/binder.cpp', 'return ret ? ret :', '客户端线程')]),
+  s('docs/08-framework/8.4-bpbinder.md', 'concept', [
+    u('framework/framework_client.cpp', 'BpBinder service(handle);', '调用线程'),
+    u('framework/binder.h', 'class IBinder {', '概念示意'),
+    u('framework/binder.h', 'class BBinder :', '概念示意'),
+    u('framework/calculator.h', 'status_t onTransact', '本地调用线程'),
+    u('framework/binder.h', 'class BpBinder :', '概念示意'),
+    u('framework/binder.cpp', 'IPCThreadState::self()->transact(handle_', '调用线程'),
+    u('framework/binder.cpp', 'ProcessState::self()', '概念示意'),
+    k('if (transaction.target_handle)', '调用线程')])
 ];

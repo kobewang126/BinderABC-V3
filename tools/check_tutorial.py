@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def excerpts(path):
     text = path.read_text()
-    pattern = r'源码：`(examples/[^`]+)`([^\n]*)\n\n(```|~~~)c\n([\s\S]*?)\n\3'
+    pattern = r'源码：`(examples/[^`]+)`([^\n]*)\n\n(```|~~~)(?:c|cpp)\n([\s\S]*?)\n\3'
     for match in re.finditer(pattern, text):
         source = ROOT / match[1]
         yield match, source

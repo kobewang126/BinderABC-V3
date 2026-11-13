@@ -97,6 +97,16 @@
 
 本篇编写至 7.5：自动创建 Node、统一 handle 寻址与事件读取，最终用 WRITE_READ 串起三个独立程序的注册、查询与调用。7.5 汇总最终 ioctl、BC/BR、事务结构与内核对象关系，复用 7.4 源码。每方向仍只交换一个命令包，不宣称与 AOSP 协议二进制兼容。
 
+### 8 第八篇：用户态 Binder 库
+
+先统一本地调用，再管理共享连接与线程通信，最后将远端 handle 包装成对象。各章独立演进；8.1 为纯用户态程序，8.2～8.4 完整复用 7.4 驱动与 `0704` 协议。
+
+- [第 8.1 章 BBinder：把本地对象统一成 transact 调用](docs/08-framework/8.1-bbinder.md)
+- [第 8.2 章 ProcessState：谁管理进程共享的设备连接？](docs/08-framework/8.2-process-state.md)
+- [第 8.3 章 IPCThreadState：把线程的通信循环收进库](docs/08-framework/8.3-ipc-thread-state.md)
+- [第 8.4 章 BpBinder：把远端 handle 变成对象](docs/08-framework/8.4-bpbinder.md)
+- [第八篇自测](docs/appendices/8-review.md)
+
 配套代码由 `examples` 按章节保存，是运行实验和调整示例的入口。获取源码后，在 Linux 环境中进入对应章节目录，按照说明编译和运行，无需切换 Git 版本；源码压缩包同样可以使用。
 
 各章的实际验证环境和覆盖范围以对应正文为准。本轮已在 Ubuntu 24.04 ARM64、Linux 6.8.0-147 上重新构建并验证 4.1～4.4、5.1～5.4、6.1～6.4、7.1～7.4；7.5 复用 7.4 实现。覆盖范围与原始输出见[验证记录](validation/README.md)。

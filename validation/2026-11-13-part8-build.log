@@ -1,0 +1,178 @@
+CHAPTER 8.1
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude -c userspace/parcel.c -o build/parcel.o
+g++ -std=c++17 -Wall -Wextra -Werror -O0 -g -Iinclude -Iframework userspace/local_demo.cpp framework/binder.cpp build/parcel.o -o build/local_demo
+g++ -std=c++17 -Wall -Wextra -Werror -O0 -g -Iinclude -Iframework tests/local_test.cpp framework/binder.cpp build/parcel.o -o build/local_test
+CHAPTER 8.2
+make -C /lib/modules/6.8.0-147-generic/build M=/home/ubuntu/binderabc-part8-check/examples/8.2/kernel modules
+make[1]: Entering directory '/usr/src/linux-headers-6.8.0-147-generic'
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: aarch64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  You are using:           gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  CC [M]  /home/ubuntu/binderabc-part8-check/examples/8.2/kernel/mini_binder.o
+  MODPOST /home/ubuntu/binderabc-part8-check/examples/8.2/kernel/Module.symvers
+  CC [M]  /home/ubuntu/binderabc-part8-check/examples/8.2/kernel/mini_binder.mod.o
+  LD [M]  /home/ubuntu/binderabc-part8-check/examples/8.2/kernel/mini_binder.ko
+  BTF [M] /home/ubuntu/binderabc-part8-check/examples/8.2/kernel/mini_binder.ko
+Skipping BTF generation for /home/ubuntu/binderabc-part8-check/examples/8.2/kernel/mini_binder.ko due to unavailability of vmlinux
+make[1]: Leaving directory '/usr/src/linux-headers-6.8.0-147-generic'
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude -c userspace/parcel.c -o build/codec_parcel.o
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude -c userspace/object_parcel.c -o build/codec_object_parcel.o
+mkdir -p build
+g++ -std=c++17 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude -Iframework framework/process_demo.cpp framework/binder.cpp build/codec_parcel.o build/codec_object_parcel.o -o build/process_demo
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/service_exit_test.c -o build/service_exit_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/version.c -o build/version
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/object_demo.c -o build/object_demo
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/protocol_test.c -o build/protocol_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/manager_test.c -o build/manager_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/mapping_test.c -o build/mapping_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/stale_reply.c -o build/stale_reply
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/server_death.c -o build/server_death
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/looper_test.c -o build/looper_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/looper_demo.c -o build/looper_demo
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/servicemanager.c userspace/parcel.c userspace/object_parcel.c -o build/servicemanager
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/calculator_server.c userspace/parcel.c userspace/object_parcel.c -o build/calculator_server
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/calculator_client.c userspace/parcel.c userspace/object_parcel.c -o build/calculator_client
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/write_read_test.c -o build/write_read_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/thread_reply_test.c -o build/thread_reply_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude tests/parcel_test.c userspace/parcel.c userspace/object_parcel.c -o build/parcel_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude tests/parcel_binding_test.c userspace/parcel.c userspace/object_parcel.c -o build/parcel_binding_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude tests/service_parcel_test.c userspace/parcel.c userspace/object_parcel.c -o build/service_parcel_test
+CHAPTER 8.3
+make -C /lib/modules/6.8.0-147-generic/build M=/home/ubuntu/binderabc-part8-check/examples/8.3/kernel modules
+make[1]: Entering directory '/usr/src/linux-headers-6.8.0-147-generic'
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: aarch64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  You are using:           gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  CC [M]  /home/ubuntu/binderabc-part8-check/examples/8.3/kernel/mini_binder.o
+  MODPOST /home/ubuntu/binderabc-part8-check/examples/8.3/kernel/Module.symvers
+  CC [M]  /home/ubuntu/binderabc-part8-check/examples/8.3/kernel/mini_binder.mod.o
+  LD [M]  /home/ubuntu/binderabc-part8-check/examples/8.3/kernel/mini_binder.ko
+  BTF [M] /home/ubuntu/binderabc-part8-check/examples/8.3/kernel/mini_binder.ko
+Skipping BTF generation for /home/ubuntu/binderabc-part8-check/examples/8.3/kernel/mini_binder.ko due to unavailability of vmlinux
+make[1]: Leaving directory '/usr/src/linux-headers-6.8.0-147-generic'
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude -c userspace/parcel.c -o build/codec_parcel.o
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude -c userspace/object_parcel.c -o build/codec_object_parcel.o
+mkdir -p build
+g++ -std=c++17 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude -Iframework tests/framework_test.cpp framework/binder.cpp build/codec_parcel.o build/codec_object_parcel.o -o build/framework_test
+mkdir -p build
+g++ -std=c++17 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude -Iframework framework/framework_server.cpp framework/binder.cpp build/codec_parcel.o build/codec_object_parcel.o -o build/framework_server
+mkdir -p build
+g++ -std=c++17 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude -Iframework framework/framework_client.cpp framework/binder.cpp build/codec_parcel.o build/codec_object_parcel.o -o build/framework_client
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/service_exit_test.c -o build/service_exit_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/version.c -o build/version
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/object_demo.c -o build/object_demo
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/protocol_test.c -o build/protocol_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/manager_test.c -o build/manager_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/mapping_test.c -o build/mapping_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/stale_reply.c -o build/stale_reply
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/server_death.c -o build/server_death
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/looper_test.c -o build/looper_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/looper_demo.c -o build/looper_demo
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/servicemanager.c userspace/parcel.c userspace/object_parcel.c -o build/servicemanager
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/calculator_server.c userspace/parcel.c userspace/object_parcel.c -o build/calculator_server
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/calculator_client.c userspace/parcel.c userspace/object_parcel.c -o build/calculator_client
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/write_read_test.c -o build/write_read_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/thread_reply_test.c -o build/thread_reply_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude tests/parcel_test.c userspace/parcel.c userspace/object_parcel.c -o build/parcel_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude tests/parcel_binding_test.c userspace/parcel.c userspace/object_parcel.c -o build/parcel_binding_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude tests/service_parcel_test.c userspace/parcel.c userspace/object_parcel.c -o build/service_parcel_test
+CHAPTER 8.4
+make -C /lib/modules/6.8.0-147-generic/build M=/home/ubuntu/binderabc-part8-check/examples/8.4/kernel modules
+make[1]: Entering directory '/usr/src/linux-headers-6.8.0-147-generic'
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: aarch64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  You are using:           gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  CC [M]  /home/ubuntu/binderabc-part8-check/examples/8.4/kernel/mini_binder.o
+  MODPOST /home/ubuntu/binderabc-part8-check/examples/8.4/kernel/Module.symvers
+  CC [M]  /home/ubuntu/binderabc-part8-check/examples/8.4/kernel/mini_binder.mod.o
+  LD [M]  /home/ubuntu/binderabc-part8-check/examples/8.4/kernel/mini_binder.ko
+  BTF [M] /home/ubuntu/binderabc-part8-check/examples/8.4/kernel/mini_binder.ko
+Skipping BTF generation for /home/ubuntu/binderabc-part8-check/examples/8.4/kernel/mini_binder.ko due to unavailability of vmlinux
+make[1]: Leaving directory '/usr/src/linux-headers-6.8.0-147-generic'
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude -c userspace/parcel.c -o build/codec_parcel.o
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude -c userspace/object_parcel.c -o build/codec_object_parcel.o
+mkdir -p build
+g++ -std=c++17 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude -Iframework tests/framework_test.cpp framework/binder.cpp build/codec_parcel.o build/codec_object_parcel.o -o build/framework_test
+mkdir -p build
+g++ -std=c++17 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude -Iframework framework/framework_server.cpp framework/binder.cpp build/codec_parcel.o build/codec_object_parcel.o -o build/framework_server
+mkdir -p build
+g++ -std=c++17 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude -Iframework framework/framework_client.cpp framework/binder.cpp build/codec_parcel.o build/codec_object_parcel.o -o build/framework_client
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/service_exit_test.c -o build/service_exit_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/version.c -o build/version
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/object_demo.c -o build/object_demo
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/protocol_test.c -o build/protocol_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/manager_test.c -o build/manager_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/mapping_test.c -o build/mapping_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/stale_reply.c -o build/stale_reply
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/server_death.c -o build/server_death
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/looper_test.c -o build/looper_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/looper_demo.c -o build/looper_demo
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/servicemanager.c userspace/parcel.c userspace/object_parcel.c -o build/servicemanager
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/calculator_server.c userspace/parcel.c userspace/object_parcel.c -o build/calculator_server
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude userspace/calculator_client.c userspace/parcel.c userspace/object_parcel.c -o build/calculator_client
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/write_read_test.c -o build/write_read_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -pthread -Iinclude tests/thread_reply_test.c -o build/thread_reply_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude tests/parcel_test.c userspace/parcel.c userspace/object_parcel.c -o build/parcel_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude tests/parcel_binding_test.c userspace/parcel.c userspace/object_parcel.c -o build/parcel_binding_test
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g -Iinclude tests/service_parcel_test.c userspace/parcel.c userspace/object_parcel.c -o build/service_parcel_test

@@ -15,7 +15,7 @@ if (sourceDownload.suggestedFilename() !== 'BinderABC-V3-source.zip' || await so
   throw new Error('Source ZIP download failed');
 }
 const counts = await page.evaluate(() => ({ chapters: window.BINDERABC_DATA.chapters.filter(ch => !ch.path.includes('/appendices/')).length, entries: window.BINDERABC_DATA.chapters.length }));
-if (counts.chapters !== 38 || counts.entries !== 48) throw new Error(`Incomplete navigation: ${JSON.stringify(counts)}`);
+if (counts.chapters !== 42 || counts.entries !== 53) throw new Error(`Incomplete navigation: ${JSON.stringify(counts)}`);
 // 所有章节共用顶部悬浮目录；展开、收起不能改变正文或滚动位置。
 async function articleLayout() {
   return page.evaluate(() => {
@@ -69,6 +69,8 @@ async function command(text) {
   await page.locator('#terminal-input').press('Enter');
 }
 for (const [chapter, program, expected] of [
+  ['8.1', 'local_demo', 'local BBinder add(7, 3) = 10'],
+  ['8.2', 'process_demo', 'one ProcessState, shared device fd'],
   ['3.3', 'object_parcel_test', 'offsets[1]=20 -> HANDLE'],
   ['4.4', 'manager_test --demo', 'client: get calculator through handle 0 -> local handle 1'],
   ['3.6', 'transfer_test', 'translated to recipient handle'],
@@ -91,14 +93,14 @@ for (const [chapter, program, expected] of [
   await page.locator('.chapter-link').nth(index).click();
   await page.locator('#terminal-chapter').click();
   await command('make');
-  if (!['3.3', '6.1'].includes(chapter)) {
+  if (!['3.3', '6.1', '8.1'].includes(chapter)) {
     await command('sudo insmod kernel/mini_binder.ko');
     await command('./build/version');
   }
   await command(`${chapter === '5.4' ? 'sudo ' : ''}./build/${program}`);
   const output = await page.locator('#terminal-output').innerText();
   if (!output.includes(expected) || !output.includes('模拟回放')) throw new Error(`Terminal ${chapter}: ${output}`);
-  if (!['3.3', '6.1'].includes(chapter)) await command('sudo rmmod mini_binder');
+  if (!['3.3', '6.1', '8.1'].includes(chapter)) await command('sudo rmmod mini_binder');
   await command('clear');
 }
 await page.locator('.chapter-link').filter({ hasText: '一个服务端，两个用户态对象' }).click();
@@ -145,6 +147,35 @@ await page.locator('.terminal-tab').first().click();
 if (!(await page.locator('#terminal-output').innerText()).includes('getService(calculator): return HANDLE object')) throw new Error('Manager did not log query');
 await page.locator('#terminal-input').press('Control+c');
 await command('sudo rmmod mini_binder');
+for (const chapter of ['8.3', '8.4']) {
+  const index = await page.evaluate(number => window.BINDERABC_DATA.chapters.findIndex(ch => ch.path.split('/').at(-1).startsWith(`${number}-`)), chapter);
+  await page.locator('.chapter-link').nth(index).click();
+  await page.locator('.terminal-tab').first().click();
+  await page.locator('#terminal-chapter').click();
+  await command('make');
+  await command('sudo insmod kernel/mini_binder.ko');
+  await command('./build/version');
+  if (!(await page.locator('#terminal-output').innerText()).includes('0704')) throw new Error(`Incorrect reused driver version: ${chapter}`);
+  await command('./build/servicemanager');
+  await page.locator('.terminal-tab').nth(1).click();
+  await page.locator('#terminal-chapter').click();
+  await command('./build/framework_server');
+  if (!(await page.locator('#terminal-output').innerText()).includes('BBinder calculator registered')) throw new Error(`Missing BBinder registration: ${chapter}`);
+  await page.locator('.terminal-tab').nth(2).click();
+  await page.locator('#terminal-chapter').click();
+  await command('./build/framework_client');
+  await command('./build/framework_test');
+  const output = await page.locator('#terminal-output').innerText();
+  const kind = chapter === '8.3' ? 'IPCThreadState' : 'BpBinder';
+  for (const text of [`${kind} add(7, 3) = 10`, `${kind} sub(7, 3) = 4`, 'TLS destruction reclaimed kernel thread records']) {
+    if (!output.includes(text)) throw new Error(`Framework terminal ${chapter}: ${text}`);
+  }
+  await page.locator('.terminal-tab').nth(1).click();
+  await page.locator('#terminal-input').press('Control+c');
+  await page.locator('.terminal-tab').first().click();
+  await page.locator('#terminal-input').press('Control+c');
+  await command('sudo rmmod mini_binder');
+}
 await page.screenshot({ path: '/tmp/binderabc-v3-site.png' });
 const overviewIndex = await page.evaluate(() => window.BINDERABC_DATA.chapters.findIndex(ch => ch.path.endsWith('7.5-driver-api.md')));
 await page.locator('.chapter-link').nth(overviewIndex).click();

@@ -91,3 +91,12 @@
 线程和槽位实验中的一字节负载只是区分请求的标记，不是在重新设计 Parcel。服务名、对象和 fd 的主实验沿用已有 Parcel/object_parcel；边界测试可以手工构造无效字节包，不能把这些反例当作业务编码方式。
 
 7.4 是综合实验。先运行三个程序并追踪成功调用，再阅读 consumed、复制失败和退出回收；不要求第一遍把所有异常分支都学完。
+
+## 第 8 篇
+
+| 章 | 本章问题 | 最小实验入口 | 要观察的证据 |
+| --- | --- | --- | --- |
+| [8.1](../08-framework/8.1-bbinder.md) | 本地对象如何统一成 transact 调用？ | local_demo | IBinder 经 BBinder 分发到 onTransact，无需驱动 |
+| [8.2](../08-framework/8.2-process-state.md) | 谁管理进程共享的连接和对象？ | process_demo | 两线程共用 fd、映射与本地对象表 |
+| [8.3](../08-framework/8.3-ipc-thread-state.md) | 谁封装每线程的通信循环？ | framework_server / framework_client | 当前 IPCThreadState 用共享 fd 收发，BBinder 处理请求 |
+| [8.4](../08-framework/8.4-bpbinder.md) | 远端 handle 如何成为对象？ | framework_server / framework_client | BpBinder 与 BBinder 实现同一接口，完成真实调用 |

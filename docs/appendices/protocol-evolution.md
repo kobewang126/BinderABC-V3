@@ -35,6 +35,10 @@
 
 对象位置表与映射地址不是一回事；id、方法 code 与协议 cmd 也不能互相代替。字段应在对应章节按需要学习，不必在开始时背下整张表。
 
+## 第八篇：用户态封装
+
+7.4 的 WRITE_READ 协议不变；8.1～8.4 分别增加本地 BBinder、ProcessState、IPCThreadState 和远端 BpBinder。它们是调用约定与资源管理的封装，不是新的内核 ioctl 或 Android ABI。
+
 ## 最终边界
 
 7.4 把本书的注册、查询、对象调用和通信入口收敛到一起，但仍采用固定容量与简化生命周期，没有实现原生 Binder 的事务栈、完整引用计数、安全策略或命令流兼容。后续 Framework 封装复用它的对象与 Parcel，不把这些简化接口当作 Android ABI。

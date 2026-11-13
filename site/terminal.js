@@ -147,7 +147,10 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   }
   const versions = { '1.2': '1', '1.3': '3', '1.4': '4', '2.1': '0201', '2.3': '0203', '2.4': '0204', '2.5': '0205', '2.6': '0206', '2.7': '0207' };
   for (const part of [3, 4, 5, 6, 7]) for (let chapter = 1; chapter <= 7; chapter++) versions[`${part}.${chapter}`] = `0${part}0${chapter}`;
+  for (const chapter of ['8.2', '8.3', '8.4']) versions[chapter] = '0704';
   const chapterTests = {
+    '8.1': { local_demo: 'local BBinder add(7, 3) = 10\nlocal BBinder sub(7, 3) = 4', local_test: 'local dispatch, malformed arguments and reused C Parcel boundaries passed' },
+    '8.2': { process_demo: 'two threads: one ProcessState, shared device fd; protocol=0704\ncookie 123 -> local BBinder: add(7, 3) = 10' },
     '3.1': { object_test: 'two objects, invalid target and code, recovery passed' },
     "3.3": { object_parcel_test: "Parcel: 32 bytes, 2 objects\noffsets[0]=4 -> LOCAL, value=0x1122334455667788\noffsets[1]=20 -> HANDLE, value=0x9\nordinary integers at offsets 0 and 16 are not object entries\nregression: reject overlap, out-of-range offsets, invalid type and insufficient space\nobject offsets, decoding, malformed data and rollback passed" },
     "3.4": { ref_test: "file A: local add object -> handle 1, add(7, 3) = 10\nfile B: local multiply object -> handle 1, mul(7, 3) = 21\nsame handle number, separate open files, different Nodes\nregression: invalid handle, malformed object table and a fresh process\nper-file handles, node conversion and calls passed" },
@@ -241,7 +244,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     if (['0.1', '0.2', '1.1'].includes(ch) && name in introductoryPrograms && !args.length) return line(introductoryPrograms[name]);
     if (name === 'parcel_demo' && args.length === 0) return line('encoded size: 16 bytes\ndecoded: number=42, text=Binder');
     if (name === 'parcel_test' && args.length === 0) { line('模拟回放：未实际运行测试。', 'info'); return line('parcel tests passed'); }
-    if (['3.3', '6.1'].includes(ch) && name in (chapterTests[ch] || {}) && !args.length) {
+    if (['3.3', '6.1', '8.1'].includes(ch) && name in (chapterTests[ch] || {}) && !args.length) {
       line('模拟回放：未实际运行程序。', 'info'); return line(chapterTests[ch][name]);
     }
     if (!loaded || loaded.name !== 'mini_binder') return error('open /dev/mini_binder: 模拟设备未加载');
@@ -251,7 +254,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
       line('模拟回放：未实际运行程序。', 'info');
       return line(demoOutputs[ch][name]);
     }
-    if (ch === '7.4' && ['servicemanager', 'calculator_server', 'calculator_client', 'service_parcel_test'].includes(name)) {
+    if (['7.4', '8.3', '8.4'].includes(ch) && ['servicemanager', 'calculator_server', 'calculator_client', 'service_parcel_test', 'framework_server', 'framework_client', 'framework_test'].includes(name)) {
       const manager = sessions.find(item => item.server === 'manager');
       const provider = sessions.find(item => item.server === 'provider');
       if (name === 'servicemanager') {
@@ -260,12 +263,18 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
         return line('ServiceManager ready: handle 0');
       }
       if (!manager) return error('ServiceManager 尚未启动');
-      if (name === 'calculator_server') {
+      if (name === 'calculator_server' || name === 'framework_server') {
         if (args.length) return error('calculator_server: 不支持的参数');
         if (provider) return error('addService failed: -17');
         sessions[active].server = 'provider';
+        sessions[active].framework = name === 'framework_server';
         serviceLog('manager', 'addService(calculator): manager handle=1');
-        return line('calculator registered: LOCAL(cookie=123)');
+        return line(name === 'framework_server' ? 'BBinder calculator registered: LOCAL(cookie=123)' : 'calculator registered: LOCAL(cookie=123)');
+      }
+      if (name === 'framework_test') {
+        if (args.length || !provider) return error('请先启动 framework_server');
+        line('模拟回放：未实际运行测试。', 'info');
+        return line('local BBinder::transact -> onTransact: 10\nunknown code and truncated Parcel rejected; owned reply survived buffer reuse\ntwo calling threads: same ProcessState/fd, distinct IPCThreadState and correct replies\n12 successive calling threads: TLS destruction reclaimed kernel thread records\nC++ Parcel reused the C object codec, including 64-bit cookies and capacity checks');
       }
       if (name === 'service_parcel_test') {
         if (args.length || !provider) return error('请先启动 calculator_server');
@@ -275,7 +284,12 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
       if (args.length > 1) return error('calculator_client: 不支持的参数');
       if ((args[0] && args[0] !== 'calculator') || !provider) return error(`getService(${args[0] || 'calculator'}): -2`);
       serviceLog('manager', 'getService(calculator): return HANDLE object');
-      serviceLog('provider', 'add(7, 3) = 10\nsub(7, 3) = 4');
+      if (!provider.framework) serviceLog('provider', 'add(7, 3) = 10\nsub(7, 3) = 4');
+      if (name === 'framework_client') {
+        const kind = ch === '8.3' ? 'IPCThreadState' : 'BpBinder';
+        line('模拟回放：未实际运行程序。', 'info');
+        return line(`${kind} calculator: handle=1\n${kind} add(7, 3) = 10\n${kind} sub(7, 3) = 4`);
+      }
       return line('getService(calculator): client handle=1\nremote add(7, 3) = 10\nremote sub(7, 3) = 4');
     }
     if (name === 'version') {
