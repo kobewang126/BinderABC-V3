@@ -187,7 +187,7 @@ function openSource(filename, ranges = [], { openPanel = true, explanation } = {
 }
 
 function group(path) {
-  const groups = ['预备篇', '第一篇 · 同步 RPC', '第二篇 · 事务与映射', '第三篇 · 对象与引用', '第四篇 · 进程与线程', '第五篇 · 同步调用', '第六篇 · 文件描述符', '第七篇 · 协议收敛'];
+  const groups = ['预备篇', '第一篇 · 同步 RPC', '第二篇 · 事务与映射', '第三篇 · 对象与引用', '第四篇 · 进程上下文、对象与服务发现', '第五篇 · 线程、任务队列与回复', '第六篇 · 文件描述符', '第七篇 · 协议收敛'];
   if (path.includes('appendices/') && !/\/[0-7]-review\.md$/.test(path)) return '阅读指南';
   const match = path.match(/docs\/(?:0([0-7])-[^/]+\/|appendices\/([0-7])-review\.md)/);
   return groups[Number(match?.[1] ?? match?.[2] ?? 0)];
