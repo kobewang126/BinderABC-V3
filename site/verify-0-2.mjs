@@ -58,6 +58,33 @@ async function command(value) {
   await page.locator('#terminal-input').fill(value);
   await page.locator('#terminal-input').press('Enter');
 }
+for (const [chapter, programs] of [
+  ['0.1', [['p01-call', 'add(1, 2) = 3'], ['p01-fork', 'value=20']]],
+  ['0.2', [['p02-syscalls', 'open failed: errno=2']]],
+  ['1.1', [['1.1-rpc-pipe', 'remote add(1, 2) = 3']]]
+]) {
+  const index = await page.evaluate(number => window.BINDERABC_DATA.chapters.findIndex(ch => ch.path.split('/').at(-1).startsWith(`${number}-`)), chapter);
+  await page.locator('.chapter-link').nth(index).click();
+  await page.locator('#terminal-chapter').click();
+  await command('pwd');
+  await command('make');
+  for (const [program, expected] of programs) {
+    await command(`./build/${program}`);
+    if (!(await page.locator('#terminal-output').innerText()).includes(expected)) throw new Error(`Early chapter failed: ${chapter}/${program}`);
+    if (!(await page.locator(`.generated-item[data-file="examples/${chapter}/build/${program}"]`).count())) throw new Error(`Missing chapter artifact: ${chapter}/${program}`);
+  }
+  if (!(await page.locator('#terminal-output').innerText()).includes(`/examples/${chapter}`)) throw new Error('Wrong chapter directory');
+  await command('clear');
+}
+await command('cd ../0.1');
+await command('make clean');
+if (await page.locator('.generated-item[data-file^="examples/0.1/build/"]').count()) throw new Error('Chapter clean kept stale artifacts');
+if (!(await page.locator('.generated-item[data-file="examples/0.2/build/p02-syscalls"]').count())) throw new Error('Clean removed another chapter artifacts');
+await command('./build/p02-syscalls');
+if (!(await page.locator('#terminal-output').innerText()).includes('未模拟构建该程序')) throw new Error('Cross-chapter binary incorrectly runnable');
+await command('clear');
+await page.locator('.chapter-link').filter({ hasText: '使用 BC 和 BR 命令' }).click();
+await page.locator('#terminal-chapter').click();
 await command('make');
 await command('sudo insmod kernel/mini_binder.ko');
 await command('./build/version');

@@ -63,7 +63,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
         if (base === 'examples/0.4') artifacts.push(`${base}/binderabc_hello.ko`);
         else {
           const makefile = files[`${base}/Makefile`] || '';
-          const targetLine = makefile.match(base === 'examples' || base === 'examples/2.2' ? /^all:\s*(.*)$/m : /^userspace:\s*(.*)$/m)?.[1] || '';
+          const targetLine = makefile.match(/^userspace:\s*(.*)$/m)?.[1] ?? makefile.match(/^all:\s*(.*)$/m)?.[1] ?? '';
           for (const match of targetLine.matchAll(/\bbuild\/[\w.-]+/g)) artifacts.push(`${base}/${match[0]}`);
           if (files[`${base}/kernel/mini_binder.c`]) artifacts.push(`${base}/kernel/mini_binder.ko`);
         }
@@ -78,9 +78,8 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     const build = built.get(cwd);
     if (!build) return false;
     const base = cwd.slice(1);
-    const rootBinaries = ['p01-call', 'p01-fork', 'p02-syscalls', '1.1-rpc-pipe'];
     const makefile = files[`${base}/Makefile`] || '';
-    const exists = base === 'examples' ? rootBinaries.includes(name) : makefile.includes(`build/${name}`);
+    const exists = makefile.includes(`build/${name}`);
     return exists && (build.has('*') || build.has(`build/${name}`));
   }
   function list(path) {
@@ -110,7 +109,6 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
         const name = match[1];
         if (built.get(base).has('*') || built.get(base).has(`build/${name}`)) names.add(name);
       }
-      if (base === '/examples') ['p01-call', 'p01-fork', 'p02-syscalls', '1.1-rpc-pipe'].filter(name => built.get(base).has('*') || built.get(base).has(`build/${name}`)).forEach(name => names.add(name));
     }
     line([...names].sort().join('  ') || '(空目录)');
   }
@@ -120,15 +118,6 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     if (!makefile) return error('make: 当前目录没有 Makefile');
     if (!args.length || args[0] === 'all') { built.set(cwd, new Set(['*'])); reportBuild(cwd); return line('模拟：构建完成。没有编译真实文件。', 'info'); }
     if (args.length === 1 && args[0] === 'clean') { built.delete(cwd); reportBuild(cwd); return line('模拟：已清理构建状态。', 'info'); }
-    const rootRuns = { 'run-0.1': ['p01-call', 'p01-fork'], 'run-0.2': ['p02-syscalls'], 'run-1.1': ['1.1-rpc-pipe'] };
-    if (cwd === '/examples' && args.length === 1 && rootRuns[args[0]]) {
-      const targets = built.get(cwd) || new Set();
-      for (const name of rootRuns[args[0]]) targets.add(`build/${name}`);
-      built.set(cwd, targets);
-      reportBuild(cwd);
-      for (const name of rootRuns[args[0]]) { line(`./build/${name}`); program(name, []); }
-      return;
-    }
     if (args.every(arg => /^build\/[\w.-]+$/.test(arg) && (makefile.includes(arg) || files[`${cwd.slice(1)}/userspace/${arg.slice(6)}.c`] || files[`${cwd.slice(1)}/tests/${arg.slice(6)}.c`]))) {
       const entries = built.get(cwd) || new Set(); args.forEach(arg => entries.add(arg)); built.set(cwd, entries);
       reportBuild(cwd);
@@ -209,13 +198,13 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   function program(name, args, cwd = sessions[active].cwd) {
     const ch = cwd.split('/').at(-1);
     if (!hasBinary(name, cwd)) return error(`${name}: 未模拟构建该程序`);
-    const rootPrograms = {
+    const introductoryPrograms = {
       'p01-call': 'add(1, 2) = 3',
       'p01-fork': 'child:  pid=1235, value=20, address=0xfffff1234560\nparent: pid=1234, value=10, address=0xfffff1234560',
       'p02-syscalls': 'Hello from userspace\nopen failed: errno=2 (No such file or directory)',
       '1.1-rpc-pipe': 'remote add(1, 2) = 3'
     };
-    if (cwd === '/examples' && name in rootPrograms && !args.length) return line(rootPrograms[name]);
+    if (['0.1', '0.2', '1.1'].includes(ch) && name in introductoryPrograms && !args.length) return line(introductoryPrograms[name]);
     if (name === 'parcel_demo' && args.length === 0) return line('encoded size: 16 bytes\ndecoded: number=42, text=Binder');
     if (name === 'parcel_test' && args.length === 0) { line('模拟回放：未实际运行测试。', 'info'); return line('parcel tests passed'); }
     if (['3.3', '6.1'].includes(ch) && name in (chapterTests[ch] || {}) && !args.length) {
@@ -431,7 +420,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   return { setChapter(path) {
     let chapter = path.split('/').at(-1).match(/^(\d+\.\d+)-/)?.[1];
     if (chapter === '7.5') chapter = '7.4';
-    chapterDir = !chapter || ['0.1', '0.2', '0.3', '1.1'].includes(chapter) ? '/examples' : `/examples/${chapter}`;
+    chapterDir = !chapter || chapter === '0.3' ? '/examples' : `/examples/${chapter}`;
     $('terminal-chapter').title = `进入当前章节目录 ${chapterDir}`;
   } };
 }

@@ -1,0 +1,45 @@
+Environment: Ubuntu 24.04 ARM64, binder-lab
+Remote isolated copy: /home/ubuntu/binderabc-early-make.5j88tv
+Linux 6.8.0-147-generic
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g call.c -o build/p01-call
+cc -std=c11 -Wall -Wextra -Werror -O0 -g fork.c -o build/p01-fork
+add(1, 2) = 3
+child:  pid=174194, value=20, address=0xffffe74f86ec
+parent: pid=174193, value=10, address=0xffffe74f86ec
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g syscalls.c -o build/p02-syscalls
+Hello from userspace
+open failed: errno=2 (No such file or directory)
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O0 -g rpc_pipe.c -o build/1.1-rpc-pipe
+remote add(1, 2) = 3
+rm -rf build
+Chapter-local clean preserved other chapter binaries.
+
+
+examples/0.2/syscalls.trace
+openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+openat(AT_FDCWD, "/lib/aarch64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+write(1, "Hello from userspace\n", 21)  = 21
+openat(AT_FDCWD, "/dev/binderabc-p02-nonexistent", O_RDONLY) = -1 ENOENT (No such file or directory)
+write(1, "open failed: errno=2 (No such fi"..., 49) = 49
++++ exited with 0 +++
+
+examples/1.1/rpc.trace
+174216 read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0\267\0\1\0\0\0\360\206\2\0\0\0\0\0"..., 832) = 832
+174216 pipe2([3, 4], 0)                 = 0
+174216 pipe2([5, 6], 0)                 = 0
+174216 write(4, "\1\0\0\0\2\0\0\0", 8)  = 8
+174217 read(3, "\1\0\0\0\2\0\0\0", 8)   = 8
+174216 read(5,  <unfinished ...>
+174217 write(6, "\3\0\0\0", 4)          = 4
+174216 <... read resumed>"\3\0\0\0", 4) = 4
+174216 wait4(174217,  <unfinished ...>
+174217 +++ exited with 0 +++
+174216 <... wait4 resumed>[{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 174217
+174216 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=174217, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+174216 write(1, "remote add(1, 2) = 3\n", 21) = 21
+174216 +++ exited with 0 +++
+
+Trace checks passed: write, missing open/ENOENT, pipe2 and wait4.

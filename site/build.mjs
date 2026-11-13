@@ -20,7 +20,6 @@ for (const chapter of exampleEntries.filter(entry => entry.isDirectory() && /^\d
     filter: source => !source.split(path.sep).some(part => part === 'build' || part === '.git') && !/\.(?:o|ko|mod|cmd)$/.test(source) && !/\/(?:Module\.symvers|modules\.order)$/.test(source)
   });
 }
-await cp(path.join(sourceRoot, 'Makefile'), path.join(out, 'examples', 'Makefile'));
 for (const directory of ['00-preparation', '01-rpc', '02-transaction', '03-objects', '04-concurrency', '05-threading', '06-file-descriptors', '07-protocol', 'appendices']) {
   await cp(path.join(root, 'docs', directory), path.join(out, 'docs', directory), { recursive: true });
 }
@@ -145,7 +144,7 @@ const sourceReadme = `# BinderABC V3 配套源码
 
 - 解压后在 Linux 中打开 examples/，根据教程进入对应章节目录。
 - 每章独立编译和运行，无需切换 Git 标签；压缩包不包含 Git 历史。
-- 0.1、0.2、1.1 的程序在 examples/ 根目录执行 make 后运行；其他章节按各自 README 或正文操作。
+- 进入 examples/ 对应章节目录执行 make，再直接运行 build/ 中的程序；具体命令按各章正文操作。
 - 驱动实验需要 C 编译器、Make、kmod、匹配运行内核的构建目录和模块加载权限。
 - 同名 mini_binder 模块不能同时加载多个章节；切换前先停止服务端并卸载旧模块。
 - 本包不包含编译产物；先用 make 编译，再直接执行生成的二进制。
