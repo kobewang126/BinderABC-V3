@@ -21,7 +21,7 @@ static void *serve(void *data)
     assert(ioctl(worker->fd, MINI_BINDER_READ, &req) == 0);
     payload = (const unsigned char *)(uintptr_t)req.transaction.data_address;
     assert(req.transaction.size == 1);
-    reply.transaction.id = req.transaction.id;
+
     reply.transaction.size = 1;
     reply.transaction.data[0] = payload[0] + 1;
     assert(ioctl(worker->fd, MINI_BINDER_WRITE, &reply) == 0);

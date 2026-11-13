@@ -54,7 +54,7 @@ static void peer(int send_id, int receive_id)
     assert(req.transaction.object_count == 1 && get32(payload) == MINI_BINDER_OBJECT_HANDLE);
     handle = get32(payload + 4);
     assert(handle == 1);
-    reply.transaction.id = req.transaction.id;
+
     reply.transaction.size = 12;
     reply.transaction.object_count = 1;
     put_object(reply.transaction.data, MINI_BINDER_OBJECT_HANDLE, handle);
@@ -112,7 +112,7 @@ int main(void)
     assert(req.transaction.object_count == 1 && get32(payload) == MINI_BINDER_OBJECT_LOCAL);
     assert(get64(payload + 4) == cookie);
     returned = (const struct service_object *)(uintptr_t)get64(payload + 4);
-    reply.transaction.id = req.transaction.id;
+
     reply.transaction.size = 4;
     put32(reply.transaction.data, (uint32_t)returned->invoke(21));
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);

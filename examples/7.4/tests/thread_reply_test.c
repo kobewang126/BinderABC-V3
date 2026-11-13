@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -18,7 +19,6 @@ struct worker {
     unsigned char *mapping;
     unsigned char input;
     uint32_t thread_id;
-    uint64_t transaction_id;
     uint32_t offset;
     unsigned char result;
     pthread_barrier_t *phase;
@@ -47,7 +47,6 @@ static void *client_thread(void *arg)
     assert(reply.transaction.size == 1 && reply.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA &&
            reply.transaction.reply_offset < 4 * MINI_BINDER_MAX_DATA);
     worker->offset = reply.transaction.reply_offset;
-    worker->transaction_id = reply.transaction.id;
     worker->result = worker->mapping[worker->offset];
     assert(worker->result == worker->input + 1);
     barrier(worker->phase);
@@ -56,39 +55,89 @@ static void *client_thread(void *arg)
     return NULL;
 }
 
+struct service_group {
+    int fd;
+    pthread_barrier_t phase;
+    pthread_mutex_t lock;
+    pthread_cond_t changed;
+    int second_done;
+};
+static void receive(int fd, struct mini_binder_command *event)
+{
+    memset(event, 0, sizeof(*event));
+#if MINI_BINDER_PROTOCOL_VERSION >= 504 && MINI_BINDER_PROTOCOL_VERSION < 703
+    event->cmd = MINI_READ_REQUEST;
+#endif
+    assert(exchange_command(fd, NULL, event) == 0);
+    assert(event->cmd == MINI_BR_TRANSACTION);
+}
+static void enter_service(int fd)
+{
+#if MINI_BINDER_PROTOCOL_VERSION >= 703
+    struct mini_binder_command enter = {.cmd = MINI_BC_ENTER_LOOPER};
+    assert(exchange_command(fd, &enter, NULL) == 0);
+#else
+    (void)fd;
+#endif
+}
+static void *service_worker(void *arg)
+{
+    struct service_group *group = arg;
+    struct mini_binder_command event, again = {0}, reply = {.cmd = MINI_BC_REPLY};
+    enter_service(group->fd);
+    receive(group->fd, &event);
+    assert(event.transaction.size == 1);
+    unsigned char value = *(const unsigned char *)(uintptr_t)event.transaction.data_address;
+#if MINI_BINDER_PROTOCOL_VERSION >= 504 && MINI_BINDER_PROTOCOL_VERSION < 703
+    again.cmd = MINI_READ_REQUEST;
+#endif
+    assert(exchange_command(group->fd, NULL, &again) == -EBUSY);
+    barrier(&group->phase);
+    barrier(&group->phase);
+    assert(pthread_mutex_lock(&group->lock) == 0);
+    while (value == 10 && !group->second_done)
+        assert(pthread_cond_wait(&group->changed, &group->lock) == 0);
+    reply.transaction.size = 1;
+    reply.transaction.data[0] = value + 1;
+    assert(exchange_command(group->fd, &reply, NULL) == 0);
+    /* A second BC_REPLY cannot select a different request. */
+    assert(exchange_command(group->fd, &reply, NULL) == -ENOENT);
+    if (value == 20) {
+        group->second_done = 1;
+        assert(pthread_cond_broadcast(&group->changed) == 0);
+    }
+    assert(pthread_mutex_unlock(&group->lock) == 0);
+    return NULL;
+}
 static void server(int ready, int stop)
 {
     int fd = open("/dev/mini_binder", O_RDWR);
     long page = sysconf(_SC_PAGESIZE);
-    void *mapping;
-    struct mini_binder_command received[2] = {0};
-    struct mini_binder_command reply = {.cmd = MINI_BC_REPLY};
-    unsigned char values[2], byte;
+    unsigned char byte;
+    pthread_t workers[2];
+    struct service_group group = {.fd = fd, .lock = PTHREAD_MUTEX_INITIALIZER,
+                                 .changed = PTHREAD_COND_INITIALIZER};
+    struct mini_binder_command event, reply = {.cmd = MINI_BC_REPLY};
     assert(fd >= 0);
+#ifdef MINI_BINDER_REGISTER_SERVER
+    assert(ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+#endif
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
-    struct mini_binder_command enter = {.cmd = MINI_BC_ENTER_LOOPER};
-    assert(mini_write(fd, &enter) == 0);
-    mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
-    assert(mapping != MAP_FAILED && write(ready, "R", 1) == 1);
-    close(ready);
-    for (int i = 0; i < 2; i++) {
-        received[i].cmd = 0;
-        assert(mini_read(fd, &received[i]) == 0);
-        assert(received[i].transaction.size == 1);
-        values[i] = *(const unsigned char *)(uintptr_t)received[i].transaction.data_address;
-    }
-    for (int i = 1; i >= 0; i--) {
-        reply.transaction.id = received[i].transaction.id;
+    void *mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
+    assert(mapping != MAP_FAILED && pthread_barrier_init(&group.phase, NULL, 3) == 0);
+    for (int i = 0; i < 2; i++)
+        assert(pthread_create(&workers[i], NULL, service_worker, &group) == 0);
+    assert(write(ready, "R", 1) == 1); close(ready);
+    barrier(&group.phase);
+    /* This thread did not receive either request: it cannot answer for a worker. */
+    assert(exchange_command(fd, &reply, NULL) == -ENOENT);
+    barrier(&group.phase);
+    for (int i = 0; i < 2; i++) assert(pthread_join(workers[i], NULL) == 0);
+    enter_service(fd);
+        receive(fd, &event);
         reply.transaction.size = 1;
-        reply.transaction.data[0] = values[i] + 1;
-        assert(mini_write(fd, &reply) == 0);
-    }
-    received[0].cmd = 0;
-    assert(mini_read(fd, &received[0]) == 0);
-    assert(received[0].transaction.size == 1);
-    reply.transaction.id = received[0].transaction.id;
-    reply.transaction.data[0] = *(const unsigned char *)(uintptr_t)received[0].transaction.data_address + 1;
-    assert(mini_write(fd, &reply) == 0);
+        reply.transaction.data[0] = *(const unsigned char *)(uintptr_t)event.transaction.data_address + 1;
+        assert(exchange_command(fd, &reply, NULL) == 0);
     assert(read(stop, &byte, 1) == 1);
     close(stop); munmap(mapping, (size_t)page); close(fd); _exit(0);
 }
@@ -125,13 +174,11 @@ int main(void)
     barrier(&phase);
     barrier(&phase);
     assert(workers[0].offset != workers[1].offset);
-    assert(workers[0].thread_id != workers[1].thread_id &&
-           workers[0].transaction_id && workers[1].transaction_id &&
-           workers[0].transaction_id != workers[1].transaction_id);
+    assert(workers[0].thread_id != workers[1].thread_id);
     assert(mapping[workers[0].offset] == workers[0].result && mapping[workers[1].offset] == workers[1].result);
     for (int i = 0; i < 2; i++)
-        printf("thread %u: transaction %llu, %u -> %u, offset %u\n", workers[i].thread_id,
-               (unsigned long long)workers[i].transaction_id, (unsigned int)workers[i].input,
+        printf("thread %u: %u -> %u, offset %u\n", workers[i].thread_id,
+               (unsigned int)workers[i].input,
                (unsigned int)workers[i].result, workers[i].offset);
     barrier(&phase);
     for (int i = 0; i < 2; i++) assert(pthread_join(threads[i], NULL) == 0);

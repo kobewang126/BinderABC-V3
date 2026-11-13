@@ -18,7 +18,7 @@ static void serve(int ready, int finish)
         int pipefd[2] = {-1, -1};
         read_request(fd, &event);
         data = (const unsigned char *)(uintptr_t)event.transaction.data_address;
-        reply.transaction.id = event.transaction.id;
+
         switch (event.transaction.code) {
         case BAD_BATCH:
             object(&reply.transaction, 0, MINI_BINDER_OBJECT_LOCAL, 900);
@@ -28,7 +28,7 @@ static void serve(int ready, int finish)
             reply.transaction.object_count = 1; reply.transaction.size = 12;
             assert(mini_write(fd, &reply) == -1 && errno == EINVAL);
             memset(&reply.transaction, 0, sizeof(reply.transaction));
-            reply.transaction.id = event.transaction.id; reply.transaction.status = -EBADF;
+             reply.transaction.status = -EBADF;
             break;
         case ALL_OBJECTS:
             for (unsigned int i = 0; i < 8; i++) object(&reply.transaction, i, MINI_BINDER_OBJECT_LOCAL, 100 + i);

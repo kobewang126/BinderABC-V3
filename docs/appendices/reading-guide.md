@@ -62,8 +62,8 @@
 | 章 | 本章问题 | 最小实验入口 | 要观察的证据 |
 | --- | --- | --- | --- |
 | [5.1](../05-threading/5.1-thread-replies.md) | 共享文件的两个线程怎样分别接收回复？ | thread_reply_test --demo | 倒序回复仍匹配原线程，映射位置互不覆盖 |
-| [5.2](../05-threading/5.2-thread-todo.md) | 怎样把回复放进调用线程的待办？ | thread_reply_test --demo，再读线程 todo | 可见结果沿用 5.1；新增的是驱动内部交付路径 |
-| [5.3](../05-threading/5.3-thread-exit.md) | 线程离开时遗留的回复位置谁释放？ | thread_exit_test --demo | 线程显式退出后，后续线程能够复用回复位置 |
+| [5.2](../05-threading/5.2-thread-todo.md) | 服务线程不填 id，怎样找到该回复的调用线程？ | thread_reply_test --demo | 两个服务线程各自绑定请求，乱序回复正确；跨线程代回被拒绝 |
+| [5.3](../05-threading/5.3-thread-exit.md) | 服务线程退出，尚未回复的事务怎么办？ | service_exit_test --demo | fd 仍存活时调用者收到 EPIPE，新线程和事务槽可以复用 |
 | [5.4](../05-threading/5.4-client-objects.md) | 客户端能否也成为对象拥有者？ | role_test | 两个进程都不 REGISTER_SERVER，仍能按先后双向调用 |
 
 ## 第 6 篇

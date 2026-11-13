@@ -44,12 +44,12 @@ static void peer(int ready, int go, int finish)
     read_request(fd, &event);
     const unsigned char *data = (const unsigned char *)(uintptr_t)event.transaction.data_address;
     assert(get32(data) == MINI_BINDER_OBJECT_HANDLE && get32(data + 4) == 1);
-    reply.transaction.id = event.transaction.id;
+
     object(&reply.transaction, 0, MINI_BINDER_OBJECT_LOCAL, 88);
     assert(mini_write(fd, &reply) == 0);
     read_request(fd, &event); assert(event.transaction.object_cookie == 88);
     memset(&reply, 0, sizeof(reply)); reply.cmd = MINI_BC_REPLY;
-    reply.transaction.id = event.transaction.id; reply.transaction.size = 4; put32(reply.transaction.data, 11);
+     reply.transaction.size = 4; put32(reply.transaction.data, 11);
     assert(mini_write(fd, &reply) == 0);
     assert(read(go, &byte, 1) == 1); close(go);
     struct mini_binder_command callback = {.cmd = MINI_BC_TRANSACTION};
@@ -97,7 +97,7 @@ int main(void)
     puts("looper READ 1: BR_REPLY, result=11 (own reply has priority)");
     read_request(shared_fd, &event); assert(event.transaction.object_cookie == 77);
     puts("looper READ 2: BR_TRANSACTION, cookie=77");
-    reply.transaction.id = event.transaction.id; reply.transaction.size = 4; put32(reply.transaction.data, 22);
+     reply.transaction.size = 4; put32(reply.transaction.data, 22);
     assert(mini_write(shared_fd, &reply) == 0);
     call.cmd = MINI_BC_EXIT_LOOPER;
     assert(mini_write(shared_fd, &call) == 0);

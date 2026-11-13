@@ -159,7 +159,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     '4.4': { workers_test: 'two client requests queued before workers started\nthread 1 handled request 1: 10 -> 11\nthread 2 handled request 2: 11 -> 12\ntwo server threads receive separate queued requests' },
     '4.5': { return_to_owner_test: 'reply Ref -> owner local object: 42\nrequest Ref -> owner local object: 42' },
     '5.1': { thread_reply_test: 'thread input 10: reply 11 at offset 0\nthread input 20: reply 21 at offset 256\nreverse replies, thread isolation, full slots and reuse passed' },
-    '5.2': { thread_reply_test: 'thread 1: transaction 1, 10 -> 11, offset 0\nthread 2: transaction 2, 20 -> 21, offset 256\nreverse replies, thread isolation, full slots and reuse passed', target_wakeup_test: 'reply id=10 -> binder thread=2: target wake events 1; other wake events 0\nreply id=9 -> binder thread=1\nboth threads received their own replies' },
+    '5.2': { thread_reply_test: 'thread 1: 10 -> 11, offset 0\nthread 2: 20 -> 21, offset 256\nreverse replies, thread isolation, full slots and reuse passed', target_wakeup_test: 'reply -> binder thread=2: target wake events 1; other wake events 0\nreply -> binder thread=1\nboth threads received their own replies' },
     '5.3': { thread_exit_test: '12 exited threads reused record; reply offset 0 reused\nexplicit thread exit and reply cleanup passed' },
     '5.4': { role_test: 'ordinary client passed a local object and handled its call: twice(7) = 14' },
     '6.1': { fd_demo: 'fd 3 and dup 5 share an open file\nchild via dup: ab; parent via fd: cd\nindependent open: ab' },
@@ -191,6 +191,43 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     write_read_test: 'write-only returned before server received request\nread retry preserved write_consumed: each request submitted exactly once\nclosing callers before receive reclaimed pending slots\nclosing callers after receive detached pointers; late replies rejected\nthread-exit cancellation and completed reply after server close passed',
     parcel_binding_test: 'name + LOCAL Parcel matches existing wire format; sequential decoding passed\nHANDLE/FD codec, malformed offsets, truncated objects and failed-write rollback passed'
   };
+  Object.assign(chapterTests['5.2'] ||= {}, {
+    thread_reply_test: "thread 1: 10 -> 11, offset 0\nthread 2: 20 -> 21, offset 256\nreverse replies, thread isolation, full slots and reuse passed",
+  });
+  Object.assign(chapterTests['5.3'] ||= {}, {
+    thread_reply_test: "thread 2: 10 -> 11, offset 256\nthread 1: 20 -> 21, offset 0\nreverse replies, thread isolation, full slots and reuse passed",
+    service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
+  });
+  demoOutputs['5.3'].service_exit_test = "service thread exit: waiting caller received EPIPE\nnext service thread: reply = 42; slots reused";
+  Object.assign(chapterTests['5.4'] ||= {}, {
+    thread_reply_test: "thread 2: 10 -> 11, offset 768\nthread 1: 20 -> 21, offset 512\nreverse replies, thread isolation, full slots and reuse passed",
+    service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
+  });
+  Object.assign(chapterTests['6.2'] ||= {}, {
+    thread_reply_test: "thread 1: 10 -> 11, offset 512\nthread 2: 20 -> 21, offset 768\nreverse replies, thread isolation, full slots and reuse passed",
+    service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
+  });
+  Object.assign(chapterTests['6.3'] ||= {}, {
+    thread_reply_test: "thread 1: 10 -> 11, offset 512\nthread 2: 20 -> 21, offset 768\nreverse replies, thread isolation, full slots and reuse passed",
+    service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
+  });
+  Object.assign(chapterTests['6.4'] ||= {}, {
+    thread_reply_test: "thread 2: 10 -> 11, offset 768\nthread 1: 20 -> 21, offset 512\nreverse replies, thread isolation, full slots and reuse passed",
+    service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
+  });
+  Object.assign(chapterTests['7.1'] ||= {}, {
+    service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
+  });
+  Object.assign(chapterTests['7.2'] ||= {}, {
+    service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
+  });
+  Object.assign(chapterTests['7.3'] ||= {}, {
+    service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
+  });
+  Object.assign(chapterTests['7.4'] ||= {}, {
+    thread_reply_test: "thread 1: 10 -> 11, offset 512\nthread 2: 20 -> 21, offset 768\nreverse replies, thread isolation, full slots and reuse passed",
+    service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
+  });
   function serviceLog(role, text) {
     const session = sessions.find(item => item.server === role);
     if (session) session.lines.push({ text, kind: '' });
@@ -278,8 +315,8 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
       if (['3.1', '3.4', '4.1'].includes(ch) && service !== 'object') return error(`${name}: 对象服务端尚未启动`);
       if (service && !['3.1', '3.4', '4.1'].includes(ch)) return error(`${name}: 请先停止普通服务端`);
       line('模拟回放：未实际运行测试。', 'info');
-      if (ch === '5.2' && name === 'target_wakeup_test') logs.push('mini_binder: reply id=10 wakes thread=2', 'mini_binder: reply id=9 wakes thread=1');
-      if (ch === '5.2' && name === 'thread_reply_test') logs.push('mini_binder: reply id=2 wakes thread=2', 'mini_binder: reply id=1 wakes thread=1', 'mini_binder: reply id=3 wakes thread=3');
+      if (ch === '5.2' && name === 'target_wakeup_test') logs.push('mini_binder: service thread=1 replies to caller thread=2', 'mini_binder: service thread=2 replies to caller thread=1');
+      if (ch === '5.2' && name === 'thread_reply_test') logs.push('mini_binder: service thread=2 replies to caller thread=2', 'mini_binder: service thread=1 replies to caller thread=1');
       return line(chapterTests[ch][name]);
     }
     if (name === 'client') {

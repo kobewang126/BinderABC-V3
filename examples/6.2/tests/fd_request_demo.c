@@ -41,7 +41,7 @@ static void receiver(int ready, int finish)
     close(received);
     printf("receiver fd %d read: %.*s\n", received, 4, data);
     fflush(stdout);
-    reply.transaction.id = req.transaction.id;
+
     assert(ioctl(binder, MINI_BINDER_WRITE, &reply) == 0);
     assert(read(finish, &token, 1) == 1);
     close(finish);

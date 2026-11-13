@@ -56,7 +56,7 @@ static void receiver(int ready, int control, int report)
     assert(memcmp(result.data, "data", 4) == 0);
     assert(close(received_fd) == 0);
     assert(write(report, &result, sizeof(result)) == sizeof(result)); close(report);
-    reply.transaction.id = req.transaction.id; reply.transaction.size = 4; put32(reply.transaction.data, 42);
+     reply.transaction.size = 4; put32(reply.transaction.data, 42);
     assert(ioctl(binder, MINI_BINDER_WRITE, &reply) == 0);
     assert(read(control, &byte, 1) == 1); close(control);
     munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(binder); _exit(0);

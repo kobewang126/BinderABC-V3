@@ -46,7 +46,7 @@ static void receiver(int ready)
     assert(req.transaction.object_count == 1 && get32(payload) == MINI_BINDER_OBJECT_HANDLE);
     call.transaction.target_handle = get32(payload + 4);
     assert(call.transaction.target_handle == 1);
-    reply.transaction.id = req.transaction.id;
+
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     call.transaction.size = 4; put32(call.transaction.data, 7);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
@@ -83,7 +83,7 @@ int main(void)
     assert(ioctl(fd, MINI_BINDER_READ, &req) == 0 && req.cmd == MINI_BR_TRANSACTION);
     assert(req.transaction.object_cookie == cookie && req.transaction.size == 4);
     payload = (const unsigned char *)(uintptr_t)req.transaction.data_address;
-    reply.transaction.id = req.transaction.id; reply.transaction.size = 4;
+     reply.transaction.size = 4;
     put32(reply.transaction.data, (uint32_t)local.invoke((int)get32(payload)));
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);

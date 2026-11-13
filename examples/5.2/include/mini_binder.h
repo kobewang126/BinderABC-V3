@@ -16,7 +16,6 @@
 #define MINI_BINDER_GET_THREAD_ID _IOR(MINI_BINDER_IOC_MAGIC, 23, __u32)
 
 struct mini_binder_transaction_data {
-    __u64 id;
     __u64 data_address;
     __u64 target_node;
     __u64 object_cookie;

@@ -20,7 +20,7 @@ static void serve(int ready, int finish)
         const unsigned char *data;
         read_request(fd, &event);
         data = (const unsigned char *)(uintptr_t)event.transaction.data_address;
-        reply.transaction.id = event.transaction.id;
+
         if (event.transaction.code == GET_OBJECT) {
             object(&reply.transaction, 0, MINI_BINDER_OBJECT_LOCAL, calc.cookie);
         } else if (event.transaction.code == SUBTRACT) {

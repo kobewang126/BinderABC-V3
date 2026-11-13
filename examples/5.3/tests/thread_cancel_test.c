@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
+#include "../userspace/command.h"
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -32,38 +33,50 @@ static void *client(void *arg)
     }
     return NULL;
 }
+struct service { int fd, control; pthread_barrier_t phase; };
+static void phase(pthread_barrier_t *p)
+{ int ret = pthread_barrier_wait(p); assert(ret == 0 || ret == PTHREAD_BARRIER_SERIAL_THREAD); }
+static void *respond(void *data)
+{
+    struct service *s = data;
+    struct mini_binder_command req = {0}, reply = {.cmd = MINI_BC_REPLY};
+    unsigned char byte;
+    assert(ioctl(s->fd, MINI_BINDER_READ, &req) == 0);
+    unsigned char value = *(const unsigned char *)(uintptr_t)req.transaction.data_address;
+    phase(&s->phase); phase(&s->phase);
+    reply.transaction.size = 1; reply.transaction.data[0] = value + 1;
+    int ret = ioctl(s->fd, MINI_BINDER_WRITE, &reply);
+    if (value == 10) assert(ret == -1 && errno == ECANCELED);
+    else assert(ret == 0);
+    (void)byte;
+    return NULL;
+}
 static void server(int notify, int control)
 {
-    int fd = open("/dev/mini_binder", O_RDWR), cancelled = -1;
+    int fd = open("/dev/mini_binder", O_RDWR);
     long page = sysconf(_SC_PAGESIZE);
-    void *mapping;
-    unsigned char byte, values[2];
-    struct mini_binder_command req[2] = {0}, reply = {.cmd = MINI_BC_REPLY};
+    unsigned char byte;
+    pthread_t workers[2];
+    struct service s = {.fd = fd, .control = control};
+    struct mini_binder_command req = {0}, reply = {.cmd = MINI_BC_REPLY};
     assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
-    mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
-    assert(mapping != MAP_FAILED && write(notify, "R", 1) == 1);
-    for (int i = 0; i < 2; i++) {
-        assert(ioctl(fd, MINI_BINDER_READ, &req[i]) == 0);
-        values[i] = *(const unsigned char *)(uintptr_t)req[i].transaction.data_address;
-        if (values[i] == 10) cancelled = i;
-    }
-    assert(cancelled >= 0 && write(notify, "R", 1) == 1);
-    close(notify);
+    void *mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
+    assert(mapping != MAP_FAILED && pthread_barrier_init(&s.phase, NULL, 3) == 0);
+    assert(write(notify, "R", 1) == 1);
+    for (int i = 0; i < 2; i++) assert(pthread_create(&workers[i], NULL, respond, &s) == 0);
+    phase(&s.phase);
+    assert(write(notify, "R", 1) == 1); close(notify);
     assert(read(control, &byte, 1) == 1);
-    reply.transaction.id = req[cancelled].transaction.id;
-    reply.transaction.size = 1; reply.transaction.data[0] = 11;
-    assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == -1 && errno == ECANCELED);
-    reply.transaction.id = req[1 - cancelled].transaction.id;
-    reply.transaction.data[0] = 21;
-    assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &req[0]) == 0);
-    reply.transaction.id = req[0].transaction.id;
-    reply.transaction.data[0] = 31;
+    phase(&s.phase);
+    for (int i = 0; i < 2; i++) assert(pthread_join(workers[i], NULL) == 0);
+    assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
+    reply.transaction.size = 1; reply.transaction.data[0] = 31;
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     assert(read(control, &byte, 1) == 1);
     close(control); munmap(mapping, (size_t)page); close(fd); _exit(0);
 }
+
 int main(void)
 {
     int notify[2], control[2], fd, status;

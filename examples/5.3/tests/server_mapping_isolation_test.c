@@ -34,7 +34,7 @@ static void other_server(int ready, int stop)
     assert(ioctl(fd, MINI_BINDER_CREATE_NODE, &node) == 0);
     assert(write(ready, &node.node_id, sizeof(node.node_id)) == sizeof(node.node_id)); close(ready);
     assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
-    reply.transaction.id = req.transaction.id;
+
     reply.transaction.size = 1; reply.transaction.data[0] = 99;
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     assert(read(stop, &byte, 1) == 1); close(stop);
@@ -95,7 +95,7 @@ int main(void)
     assert(*caller.request == 55);
     assert(pthread_create(&thread, NULL, outgoing_client, &caller) == 0);
     assert(pthread_join(thread, NULL) == 0 && *caller.request == 55);
-    reply.transaction.id = req.transaction.id;
+
     reply.transaction.size = 1; reply.transaction.data[0] = *caller.request + 1;
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     assert(waitpid(client, &status, 0) == client && WIFEXITED(status) && WEXITSTATUS(status) == 0);

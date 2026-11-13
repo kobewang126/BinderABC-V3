@@ -49,7 +49,7 @@ static void manager(int ready_fd)
         uint32_t len, end;
         assert(mini_read(fd, &req) == 0);
         data = (const unsigned char *)(uintptr_t)req.transaction.data_address;
-        reply.transaction.id = req.transaction.id;
+
         len = req.transaction.size >= 4 ? get32(data) : 0;
         end = len <= 32 ? (4 + len + 3) & ~3U : 0;
         if (!len || !end || end > req.transaction.size) {
@@ -88,7 +88,7 @@ static void provider(int ready_fd)
     for (;;) {
         struct mini_binder_command in = {.cmd = 0}, reply = {.cmd = MINI_BC_REPLY};
         assert(mini_read(fd, &in) == 0 && in.transaction.object_cookie == 123);
-        reply.transaction.id = in.transaction.id; reply.transaction.size = 4; put32(reply.transaction.data, 42);
+         reply.transaction.size = 4; put32(reply.transaction.data, 42);
         assert(mini_write(fd, &reply) == 0);
     }
 }

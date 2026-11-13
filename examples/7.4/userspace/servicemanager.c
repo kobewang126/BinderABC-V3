@@ -19,7 +19,7 @@ int main(void)
         struct object_parcel request, reply;
         struct parcel_object object;
         char name[33];
-        memset(&next, 0, sizeof(next)); next.cmd = MINI_BC_REPLY; next.transaction.id = tx->id;
+        memset(&next, 0, sizeof(next)); next.cmd = MINI_BC_REPLY;
         object_parcel_init(&reply, next.transaction.data, sizeof(next.transaction.data));
         int status = parcel_from_transaction(&request, tx, (const void *)(uintptr_t)tx->data_address);
         if (!status) status = read_service_name(&request, name);

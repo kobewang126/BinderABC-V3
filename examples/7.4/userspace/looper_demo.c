@@ -13,7 +13,7 @@ static void serve(int ready, int finish)
     const unsigned char *data = (const unsigned char *)(uintptr_t)event.transaction.data_address;
     assert(get32(data) == MINI_BINDER_OBJECT_HANDLE);
     uint32_t callback = get32(data + 4);
-    reply.transaction.id = event.transaction.id;
+
     reply.transaction.size = 4; put32(reply.transaction.data, 11);
     assert(mini_write(fd, &reply) == 0);
     /* The first transaction is answered before starting the reverse call. */
@@ -44,7 +44,7 @@ int main(void)
     read_request(fd, &event); assert(event.transaction.object_cookie == 77);
     puts("same READ: BR_TRANSACTION, cookie=77");
     memset(&call, 0, sizeof(call)); call.cmd = MINI_BC_REPLY;
-    call.transaction.id = event.transaction.id;
+
     call.transaction.size = 4; put32(call.transaction.data, 22);
     assert(mini_write(fd, &call) == 0);
     call.cmd = MINI_BC_EXIT_LOOPER;

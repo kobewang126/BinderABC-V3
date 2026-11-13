@@ -11,7 +11,7 @@ static void peer(int ready, int go, int finish)
     assert(write(ready, "R", 1) == 1); close(ready);
     assert(read(go, &byte, 1) == 1); close(go);
     for (int i = 0; i < 2; i++) {
-        read_request(fd, &event); reply.transaction.id = event.transaction.id;
+        read_request(fd, &event);
         reply.transaction.size = 4; put32(reply.transaction.data, 9);
         assert(mini_write(fd, &reply) == 0);
     }
@@ -81,7 +81,7 @@ static void lifecycle_test(void)
     puts("closing callers before receive reclaimed pending slots");
     for (int i = 0; i < 8; i++) {
         fd = client(&mapping); assert(mini_write(fd, &call) == 0); read_request(server, &event);
-        unmap_close(fd, mapping); reply.transaction.id = event.transaction.id;
+        unmap_close(fd, mapping);
         assert(mini_write(server, &reply) == -1 && errno == ECANCELED);
     }
     puts("closing callers after receive detached pointers; late replies rejected");
@@ -89,7 +89,7 @@ static void lifecycle_test(void)
     assert(mini_write(fd, &call) == -1 && errno == EBUSY);
     assert(ioctl(fd, MINI_BINDER_THREAD_EXIT) == 0); /* Also cancels an unread request. */
     assert(mini_write(fd, &call) == 0); read_request(server, &event);
-    reply.transaction.id = event.transaction.id;
+
     assert(mini_write(server, &reply) == 0);
     unmap_close(server, server_map); /* Completed reply must survive server close. */
     read_reply(fd, &event); free_reply(fd); unmap_close(fd, mapping);

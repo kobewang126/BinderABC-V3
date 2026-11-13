@@ -33,7 +33,7 @@ static void server(int ready, int finish)
     object_parcel_init(&response, reply.transaction.data, sizeof(reply.transaction.data));
     assert(object_parcel_write(&response, OBJECT_PARCEL_FD, (uint32_t)data[0]) == 0);
     parcel_to_transaction(&reply.transaction, &response);
-    reply.transaction.id = req.transaction.id;
+
     assert(ioctl(binder, MINI_BINDER_WRITE, &reply) == 0); close(data[0]);
     assert(read(finish, &token, 1) == 1); close(finish);
     munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(binder); _exit(0);

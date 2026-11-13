@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 #define _GNU_SOURCE
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -73,6 +74,21 @@ static void trace_write(const char *instance, const char *name, const char *valu
     assert(fputs(value, f) >= 0 && fclose(f) == 0);
 }
 
+struct responder { int fd, go[2]; struct mini_binder_command request; pthread_barrier_t *ready; };
+static void *respond(void *data)
+{
+    struct responder *r = data;
+    struct mini_binder_command reply = {.cmd = MINI_BC_REPLY};
+    unsigned char byte;
+    assert(ioctl(r->fd, MINI_BINDER_READ, &r->request) == 0);
+    int ret = pthread_barrier_wait(r->ready);
+    assert(ret == 0 || ret == PTHREAD_BARRIER_SERIAL_THREAD);
+    assert(read(r->go[0], &byte, 1) == 1);
+    reply.transaction.size = 1;
+    reply.transaction.data[0] = *(const unsigned char *)(uintptr_t)r->request.transaction.data_address + 1;
+    assert(ioctl(r->fd, MINI_BINDER_WRITE, &reply) == 0);
+    return NULL;
+}
 int main(void)
 {
     long page = sysconf(_SC_PAGESIZE), tids[2];
@@ -82,9 +98,11 @@ int main(void)
     char instance[128], filter[128], path[256], line[512], first_pid[40], second_pid[40];
     int first_wakes = 0, second_wakes = 0;
     FILE *trace;
-    pthread_t threads[2];
+    pthread_t threads[2], responders[2];
+    pthread_barrier_t ready;
+    struct responder service[2];
     struct client clients[2];
-    struct mini_binder_command received[2] = {0}, reply = {.cmd = MINI_BC_REPLY};
+    struct mini_binder_command received[2] = {0};
     assert(server >= 0 && ioctl(server, MINI_BINDER_REGISTER_SERVER) == 0);
     assert(ioctl(server, MINI_BINDER_REGISTER_MANAGER) == 0);
     server_mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, server, 0);
@@ -96,8 +114,16 @@ int main(void)
                                       .value = (unsigned char)(10 + i * 10), .tid = ATOMIC_VAR_INIT(0)};
         assert(pthread_create(&threads[i], NULL, call_server, &clients[i]) == 0);
     }
+    assert(pthread_barrier_init(&ready, NULL, 3) == 0);
     for (int i = 0; i < 2; i++) {
-        assert(ioctl(server, MINI_BINDER_READ, &received[i]) == 0);
+        service[i] = (struct responder){.fd = server, .ready = &ready};
+        assert(pipe(service[i].go) == 0);
+        assert(pthread_create(&responders[i], NULL, respond, &service[i]) == 0);
+    }
+    int phase = pthread_barrier_wait(&ready);
+    assert(phase == 0 || phase == PTHREAD_BARRIER_SERIAL_THREAD);
+    for (int i = 0; i < 2; i++) {
+        received[i] = service[i].request;
         byte = *(const unsigned char *)(uintptr_t)received[i].transaction.data_address;
         if (byte == 10) first = i;
         if (byte == 20) second = i;
@@ -113,9 +139,8 @@ int main(void)
     trace_write(instance, "trace", "");
     trace_write(instance, "tracing_on", "1");
 
-    reply.transaction.id = received[first].transaction.id;
-    reply.transaction.size = 1; reply.transaction.data[0] = 11;
-    assert(ioctl(server, MINI_BINDER_WRITE, &reply) == 0);
+
+    assert(write(service[first].go[1], "G", 1) == 1);
     assert(read(notify[0], &byte, 1) == 1 && byte == 10);
     trace_write(instance, "tracing_on", "0");
     wait_in_ioctl(&clients[1].tid);
@@ -131,16 +156,20 @@ int main(void)
     trace_write(instance, "events/sched/sched_waking/enable", "0");
     assert(rmdir(instance) == 0);
     assert(first_wakes >= 1 && second_wakes == 0);
-    printf("reply id=%llu -> binder thread=%u: target wake events %d; other wake events %d\n",
-           (unsigned long long)received[first].transaction.id, clients[0].binder_thread, first_wakes, second_wakes);
+    printf("reply -> binder thread=%u: target wake events %d; other wake events %d\n",
+           clients[0].binder_thread, first_wakes, second_wakes);
 
-    reply.transaction.id = received[second].transaction.id;
-    reply.transaction.data[0] = 21;
-    assert(ioctl(server, MINI_BINDER_WRITE, &reply) == 0);
+
+    assert(write(service[second].go[1], "G", 1) == 1);
     assert(read(notify[0], &byte, 1) == 1 && byte == 20);
-    printf("reply id=%llu -> binder thread=%u\n",
-           (unsigned long long)received[second].transaction.id, clients[1].binder_thread);
+    printf("reply -> binder thread=%u\n",
+           clients[1].binder_thread);
     for (int i = 0; i < 2; i++) assert(pthread_join(threads[i], NULL) == 0);
+    for (int i = 0; i < 2; i++) {
+        assert(pthread_join(responders[i], NULL) == 0);
+        close(service[i].go[0]); close(service[i].go[1]);
+    }
+    pthread_barrier_destroy(&ready);
     close(notify[0]); close(notify[1]);
     munmap(mapping, (size_t)page); close(fd);
     munmap(server_mapping, (size_t)page); close(server);

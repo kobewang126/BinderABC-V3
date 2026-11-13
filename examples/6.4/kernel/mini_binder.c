@@ -32,6 +32,7 @@ struct mini_binder_fd_set {
 };
 
 struct mini_binder_thread {
+    struct transaction_slot *current_transaction;
     struct pid *pid;
     __u32 id;
     struct list_head todo;
@@ -81,7 +82,6 @@ static DEFINE_SPINLOCK(mapping_lock);
 static DECLARE_WAIT_QUEUE_HEAD(server_wait);
 static struct file *server_file;
 static struct transaction_slot slots[SLOT_COUNT];
-static __u64 next_id;
 static struct mini_binder_node nodes[8];
 static __u64 next_node_id;
 
@@ -134,6 +134,16 @@ static long mini_binder_thread_exit(struct mini_binder_proc *proc)
         if (thread->inflight || !list_empty(&thread->todo)) {
             ret = -EBUSY;
             break;
+        }
+        if (thread->current_transaction) {
+            struct transaction_slot *slot = thread->current_transaction;
+            if (slot->state == RPC_CANCELLED) {
+                WRITE_ONCE(slot->state, RPC_IDLE);
+            } else if (slot->state == RPC_PROCESSING) {
+                WRITE_ONCE(slot->state, RPC_FAILED);
+                wake_up_interruptible(&slot->caller->wait);
+            }
+            thread->current_transaction = NULL;
         }
         if (thread->reply_ready) {
             proc->reply_used &= ~(1UL << thread->reply_index);
@@ -392,10 +402,6 @@ static long call_server(struct file *file, struct mini_binder_thread *thread, vo
     for (reply_index = 0; reply_index < SLOT_COUNT; reply_index++)
         if (!(client_ctx->reply_used & (1UL << reply_index))) break;
     if (reply_index == SLOT_COUNT) { ret = -EBUSY; goto unlock_state; }
-    if (next_id == U64_MAX) {
-        ret = -EOVERFLOW;
-        goto unlock_state;
-    }
     if (transaction.target_handle) {
         if (transaction.target_node || transaction.target_handle > ARRAY_SIZE(client_ctx->refs) ||
             !client_ctx->refs[transaction.target_handle - 1].node_id) { ret = -ENOENT; goto unlock_state; }
@@ -434,7 +440,6 @@ static long call_server(struct file *file, struct mini_binder_thread *thread, vo
     }
     ret = translate_objects(file, server_ctx, &transaction, &slot->request_fds);
     if (ret) goto unlock_state;
-    slot->request.id = ++next_id;
     memcpy((char *)server_ctx->buffer + i * MINI_BINDER_MAX_DATA, transaction.data, transaction.size);
     slot->request.size = transaction.size;
     slot->request.code = transaction.code;
@@ -463,7 +468,6 @@ static long call_server(struct file *file, struct mini_binder_thread *thread, vo
     }
     if (!ret && slot->state == RPC_DONE) {
         transaction.size = slot->reply.size;
-        transaction.id = slot->request.id;
         transaction.status = slot->reply.status;
         transaction.object_count = slot->reply.object_count;
         memcpy(transaction.object_offsets, slot->reply.object_offsets, sizeof(transaction.object_offsets));
@@ -518,7 +522,7 @@ static long release_reply(struct file *file, struct mini_binder_thread *thread)
     return ret;
 }
 
-static long receive_request(struct file *file, void __user *arg)
+static long receive_request(struct file *file, struct mini_binder_thread *thread, void __user *arg)
 {
     long ret;
     unsigned int i;
@@ -527,6 +531,10 @@ static long receive_request(struct file *file, void __user *arg)
 
     for (;;) {
         mutex_lock(&state_lock);
+        if (thread->current_transaction) {
+            mutex_unlock(&state_lock);
+            return -EBUSY;
+        }
         {
             spin_lock(&mapping_lock);
             if (!ctx->mapping_vma || ctx->mapping_vma->vm_mm != current->mm) {
@@ -545,7 +553,6 @@ static long receive_request(struct file *file, void __user *arg)
             list_del_init(&slot->work);
             atomic_dec(&ctx->pending_count);
 
-            delivered.id = slot->request.id;
             delivered.data_address = user_base + i * MINI_BINDER_MAX_DATA;
             delivered.size = slot->request.size;
             delivered.code = slot->request.code;
@@ -572,6 +579,7 @@ static long receive_request(struct file *file, void __user *arg)
                 return -EFAULT;
             }
             install_fds(&slot->request_fds, reserved);
+            thread->current_transaction = slot;
             mutex_unlock(&state_lock);
             return 0;
         }
@@ -584,28 +592,20 @@ static long receive_request(struct file *file, void __user *arg)
     }
 }
 
-static long send_reply(struct file *file, void __user *arg)
+static long send_reply(struct file *file, struct mini_binder_thread *thread, void __user *arg)
 {
     struct mini_binder_transaction_data incoming_transaction;
-    __u64 id;
     __s32 status;
     long ret = 0;
     struct transaction_slot *slot = NULL;
-    unsigned int i;
 
     if (copy_from_user(&incoming_transaction, arg, sizeof(incoming_transaction)))
         return -EFAULT;
     if (incoming_transaction.size > MINI_BINDER_MAX_DATA)
         return -EMSGSIZE;
-    id = incoming_transaction.id;
     status = incoming_transaction.status;
     mutex_lock(&state_lock);
-    for (i = 0; i < SLOT_COUNT; i++) {
-        if (slots[i].state != RPC_IDLE && slots[i].request.id == id) {
-            slot = &slots[i];
-            break;
-        }
-    }
+    slot = thread->current_transaction;
     if (!slot)
         ret = -ENOENT;
     else if (slot->receiver != file)
@@ -628,6 +628,8 @@ static long send_reply(struct file *file, void __user *arg)
             wake_up_interruptible(&slot->caller->wait);
         }
     }
+    if (!ret || ret == -ECANCELED)
+        thread->current_transaction = NULL;
     mutex_unlock(&state_lock);
     return ret;
 }
@@ -642,7 +644,7 @@ static long write_command(struct file *file, struct mini_binder_thread *thread, 
     case MINI_BC_TRANSACTION:
         return call_server(file, thread, &write_cmd->transaction);
     case MINI_BC_REPLY:
-        return send_reply(file, &write_cmd->transaction);
+        return send_reply(file, thread, &write_cmd->transaction);
     case MINI_BC_FREE_REPLY:
         return release_reply(file, thread);
     default:
@@ -663,7 +665,7 @@ static long read_command(struct file *file, struct mini_binder_thread *thread, v
     if (kind == MINI_READ_REQUEST) {
         if (put_user(MINI_BR_TRANSACTION, &read_cmd->cmd))
             return -EFAULT;
-        return receive_request(file, &read_cmd->transaction);
+        return receive_request(file, thread, &read_cmd->transaction);
     }
     if (kind != MINI_READ_REPLY) return -EINVAL;
     mutex_lock(&state_lock);

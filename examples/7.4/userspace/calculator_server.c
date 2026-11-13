@@ -27,7 +27,7 @@ int main(void)
         const struct mini_binder_transaction_data *tx = &event.transaction;
         struct object_parcel request, reply;
         uint32_t a, b;
-        memset(&next, 0, sizeof(next)); next.cmd = MINI_BC_REPLY; next.transaction.id = tx->id;
+        memset(&next, 0, sizeof(next)); next.cmd = MINI_BC_REPLY;
         object_parcel_init(&reply, next.transaction.data, sizeof(next.transaction.data));
         int status = parcel_from_transaction(&request, tx, (const void *)(uintptr_t)tx->data_address);
         if (status || tx->object_cookie != CALCULATOR_COOKIE || request.count ||

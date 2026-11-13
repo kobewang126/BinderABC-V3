@@ -33,7 +33,7 @@ static void server(int ready, int stop)
     assert(write(ready, "R", 1) == 1); close(ready);
     for (int i = 0; i < (demo ? 2 : 3); i++) {
         assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
-        reply.transaction.id = req.transaction.id;
+
         reply.transaction.size = 1; reply.transaction.data[0] = (unsigned char)((demo ? 21 : 11) + i * 10);
         assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     }

@@ -46,7 +46,7 @@ static void manager(int ready_fd)
         const unsigned char *text;
         size_t length;
         assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
-        reply.transaction.id = req.transaction.id;
+
         object_parcel_init(&response, reply.transaction.data, sizeof(reply.transaction.data));
         int invalid = parcel_from_transaction(&request, &req.transaction,
                           (const void *)(uintptr_t)req.transaction.data_address);
@@ -85,7 +85,7 @@ static void provider(int ready_fd)
     for (;;) {
         struct mini_binder_command in = {.cmd = MINI_READ_REQUEST}, reply = {.cmd = MINI_BC_REPLY};
         assert(ioctl(fd, MINI_BINDER_READ, &in) == 0 && in.transaction.object_cookie == 123);
-        reply.transaction.id = in.transaction.id; reply.transaction.size = 4; put32(reply.transaction.data, 42);
+         reply.transaction.size = 4; put32(reply.transaction.data, 42);
         assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     }
 }

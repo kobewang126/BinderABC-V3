@@ -40,20 +40,20 @@ static void receive_request(int fd, struct mini_binder_command *req)
     memset(req, 0, sizeof(*req)); req->cmd = MINI_READ_REQUEST;
     assert(ioctl(fd, MINI_BINDER_READ, req) == 0 && req->cmd == MINI_BR_TRANSACTION);
 }
-static void send_fd_reply(int fd, uint64_t id, int data_fd)
+static void send_fd_reply(int fd, int data_fd)
 {
     struct mini_binder_command reply = {.cmd = MINI_BC_REPLY};
-    reply.transaction.id = id; reply.transaction.size = 12; reply.transaction.object_count = 1;
+     reply.transaction.size = 12; reply.transaction.object_count = 1;
     put32(reply.transaction.data, MINI_BINDER_OBJECT_FD);
     put32(reply.transaction.data + 4, (uint32_t)data_fd);
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
 }
-static void send_pipe_and_wait(int binder, uint64_t id, int notify)
+static void send_pipe_and_wait(int binder, int notify)
 {
     int p[2];
     char byte;
     assert(pipe(p) == 0);
-    send_fd_reply(binder, id, p[1]);
+    send_fd_reply(binder, p[1]);
     close(p[1]);
     assert(write(notify, "H", 1) == 1);
     assert(read(p[0], &byte, 1) == 0); close(p[0]);
@@ -74,7 +74,7 @@ static void server(int notify, int stop)
     data_fd = mkstemp(path); assert(data_fd >= 0 && unlink(path) == 0);
     assert(write(data_fd, "data", 4) == 4 && lseek(data_fd, 0, SEEK_SET) == 0);
     duplicate = dup(data_fd); assert(duplicate >= 0);
-    invalid.transaction.id = req.transaction.id; invalid.transaction.size = 36; invalid.transaction.object_count = 3;
+     invalid.transaction.size = 36; invalid.transaction.object_count = 3;
     invalid.transaction.object_offsets[1] = 12; invalid.transaction.object_offsets[2] = 24;
     put32(invalid.transaction.data, MINI_BINDER_OBJECT_LOCAL); put32(invalid.transaction.data + 4, 123);
     assert(pipe(leak_pipe) == 0);
@@ -89,18 +89,18 @@ static void server(int notify, int stop)
     assert(close(data_fd) == 0 && close(duplicate) == 0 && write(notify, "C", 1) == 1);
 
     receive_request(binder, &req);
-    send_pipe_and_wait(binder, req.transaction.id, notify);
+    send_pipe_and_wait(binder, notify);
 
     receive_request(binder, &req);
-    send_pipe_and_wait(binder, req.transaction.id, notify);
+    send_pipe_and_wait(binder, notify);
 
     receive_request(binder, &req);
-    reply.transaction.id = req.transaction.id; reply.transaction.size = 4;
+     reply.transaction.size = 4;
     put32(reply.transaction.data, 55);
     assert(ioctl(binder, MINI_BINDER_WRITE, &reply) == 0);
 
     receive_request(binder, &req);
-    send_pipe_and_wait(binder, req.transaction.id, notify);
+    send_pipe_and_wait(binder, notify);
     assert(read(stop, &byte, 1) == 1);
     close(notify); close(stop); munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(binder); _exit(0);
 }

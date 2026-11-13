@@ -30,7 +30,7 @@ static void server(int pipefd, uint32_t value)
         assert(read_cmd.cmd == MINI_BR_TRANSACTION);
         assert(read_cmd.transaction.target_node == node.node_id);
         assert(read_cmd.transaction.object_cookie == 42);
-        reply.transaction.id = read_cmd.transaction.id;
+
         reply.transaction.size = sizeof(value);
         __builtin_memcpy(reply.transaction.data, &value, sizeof(value));
         assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);

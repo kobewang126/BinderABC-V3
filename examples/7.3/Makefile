@@ -6,7 +6,7 @@ KDIR ?= /lib/modules/$(shell uname -r)/build
 all: module userspace
 module:
 	$(MAKE) -C $(KDIR) M=$(CURDIR)/kernel modules
-userspace: build/parcel_binding_test build/version build/object_demo build/protocol_test build/manager_test build/mapping_test build/stale_reply build/server_death build/looper_test build/looper_demo
+userspace: build/service_exit_test build/parcel_binding_test build/version build/object_demo build/protocol_test build/manager_test build/mapping_test build/stale_reply build/server_death build/looper_test build/looper_demo
 build/version: userspace/version.c include/mini_binder.h
 	mkdir -p build
 	$(CC) $(CFLAGS) -Iinclude $< -o $@
