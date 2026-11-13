@@ -60,7 +60,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     for (const [cwd, targets] of built) {
       const base = cwd.slice(1);
       if (targets.has('*')) {
-        if (base === 'examples/0.3') artifacts.push(`${base}/binderabc_hello.ko`);
+        if (base === 'examples/0.4') artifacts.push(`${base}/binderabc_hello.ko`);
         else {
           const makefile = files[`${base}/Makefile`] || '';
           const targetLine = makefile.match(base === 'examples' || base === 'examples/2.2' ? /^all:\s*(.*)$/m : /^userspace:\s*(.*)$/m)?.[1] || '';
@@ -101,8 +101,8 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
       }
     }
     const build = built.get(directory);
-    if (build && directory !== '/examples/0.3') names.add('build/');
-    if (build && directory === '/examples/0.3') names.add('binderabc_hello.ko');
+    if (build && directory !== '/examples/0.4') names.add('build/');
+    if (build && directory === '/examples/0.4') names.add('binderabc_hello.ko');
     if (directory.endsWith('/build')) {
       const base = directory.slice(0, -6);
       const makefile = files[`${base.slice(1)}/Makefile`] || '';
@@ -139,7 +139,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   function moduleCommand(args) {
     const cwd = sessions[active].cwd;
     if (args[0] === 'insmod' && args.length === 2) {
-      const isHello = cwd === '/examples/0.3' && /^\.?\/?binderabc_hello\.ko$/.test(args[1]);
+      const isHello = cwd === '/examples/0.4' && /^\.?\/?binderabc_hello\.ko$/.test(args[1]);
       const isBinder = !!files[`${cwd.slice(1)}/kernel/mini_binder.c`] && args[1] === 'kernel/mini_binder.ko';
       if (!isHello && !isBinder) return error('insmod: 模拟器不支持该模块路径');
       if (!currentBuild()?.has('*')) return error('insmod: 未模拟构建模块，请先运行 make');
@@ -373,7 +373,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     }
     if (command === 'make') return make(words);
     if (command === 'uname' && words.length === 1 && ['-r', '-m'].includes(words[0])) return line(words[0] === '-r' ? '6.8.0-147-generic' : 'aarch64');
-    if (command === 'modinfo' && words.length === 1 && words[0] === './binderabc_hello.ko' && session.cwd === '/examples/0.3') {
+    if (command === 'modinfo' && words.length === 1 && words[0] === './binderabc_hello.ko' && session.cwd === '/examples/0.4') {
       if (!currentBuild()?.has('*')) return error('modinfo: 模拟模块尚未构建');
       return line('name:           binderabc_hello\nvermagic:       6.8.0-147-generic SMP preempt mod_unload modversions aarch64');
     }
@@ -430,7 +430,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   render();
   return { setChapter(path) {
     const chapter = path.split('/').at(-1).match(/^(\d+\.\d+)-/)?.[1];
-    chapterDir = !chapter || ['0.1', '0.2', '0.4', '1.1'].includes(chapter) ? '/examples' : `/examples/${chapter}`;
+    chapterDir = !chapter || ['0.1', '0.2', '0.3', '1.1'].includes(chapter) ? '/examples' : `/examples/${chapter}`;
     $('terminal-chapter').title = `进入当前章节目录 ${chapterDir}`;
   } };
 }

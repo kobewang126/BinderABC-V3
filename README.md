@@ -8,7 +8,7 @@
 
 主线是：跨进程调用 → 参数传输与存放 → 对象与引用 → 上下文与线程 → fd 传递 → 协议收敛。每章集中解决一个新问题；结构整理和生命周期章节不一定新增对外功能。
 
-首次搭建环境时，先完成 [0.4 环境检查](docs/00-preparation/0.4-kernel-environment.md)，再运行 0.3 的模块实验。章节编号保留不变。
+先完成 0.3 的环境准备，再运行 0.4 的内核模块实验。
 
 - [各章学习目标与最小实验](docs/appendices/reading-guide.md)：先预测结果、运行主实验，再阅读关键调用链；额外回归最后做。
 - [教学接口的演进与退出点](docs/appendices/protocol-evolution.md)：说明哪些接口只是中间步骤，何时替换，避免把教学简化当作 Android 最终设计。
@@ -19,8 +19,8 @@
 
 - [0.1 从 main.c 到 Linux 进程](docs/00-preparation/0.1-process.md)
 - [0.2 从函数调用到系统调用](docs/00-preparation/0.2-syscalls.md)
-- [0.3 第一个 Linux 内核模块](docs/00-preparation/0.3-kernel-module.md)
-- [0.4 搭建 Linux 内核实验环境](docs/00-preparation/0.4-kernel-environment.md)
+- [0.3 搭建 Linux 内核实验环境](docs/00-preparation/0.3-kernel-environment.md)
+- [0.4 第一个 Linux 内核模块](docs/00-preparation/0.4-kernel-module.md)
 - [预备篇自测](docs/appendices/0-review.md)
 
 ### 1 第一篇：从函数调用到同步 RPC
