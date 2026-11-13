@@ -15,7 +15,7 @@ if (sourceDownload.suggestedFilename() !== 'BinderABC-V3-source.zip' || await so
   throw new Error('Source ZIP download failed');
 }
 const counts = await page.evaluate(() => ({ chapters: window.BINDERABC_DATA.chapters.filter(ch => !ch.path.includes('/appendices/')).length, entries: window.BINDERABC_DATA.chapters.length }));
-if (counts.chapters !== 42 || counts.entries !== 53) throw new Error(`Incomplete navigation: ${JSON.stringify(counts)}`);
+if (counts.chapters !== 43 || counts.entries !== 54) throw new Error(`Incomplete navigation: ${JSON.stringify(counts)}`);
 // 所有章节共用顶部悬浮目录；展开、收起不能改变正文或滚动位置。
 async function articleLayout() {
   return page.evaluate(() => {
@@ -87,7 +87,8 @@ for (const [chapter, program, expected] of [
   ['7.1', 'object_demo', 'same local object reused'],
   ['7.2', 'object_demo', 'same local object reused'],
   ['7.3', 'looper_demo', 'BC_EXIT_LOOPER completed'],
-  ['7.4', 'write_read_test', 'exactly once']
+  ['7.4', 'oneway_test --demo', 'both completed without BC_REPLY'],
+  ['7.5', 'write_read_test', 'exactly once']
 ]) {
   const index = await page.evaluate(number => window.BINDERABC_DATA.chapters.findIndex(ch => ch.path.split('/').at(-1).startsWith(`${number}-`)), chapter);
   await page.locator('.chapter-link').nth(index).click();
@@ -120,7 +121,7 @@ for (const expected of ['object 1: sub(7, 3) = 4', 'object 2: sub(7, 3) = -4', '
 await page.locator('.terminal-tab').first().click();
 await page.locator('#terminal-input').press('Control+c');
 await command('sudo rmmod mini_binder');
-const finalIndex = await page.evaluate(() => window.BINDERABC_DATA.chapters.findIndex(ch => ch.path.includes('/7.4-')));
+const finalIndex = await page.evaluate(() => window.BINDERABC_DATA.chapters.findIndex(ch => ch.path.includes('/7.5-')));
 await page.locator('.chapter-link').nth(finalIndex).click();
 await page.locator('#terminal-chapter').click();
 await command('make');
@@ -136,7 +137,7 @@ await command('./build/calculator_client');
 await command('./build/service_parcel_test');
 let finalOutput = await page.locator('#terminal-output').innerText();
 for (const text of ['getService(missing): -2', 'remote add(7, 3) = 10', 'remote sub(7, 3) = 4', 'valid call recovered']) {
-  if (!finalOutput.includes(text)) throw new Error(`7.4 terminal missing ${text}: ${finalOutput}`);
+  if (!finalOutput.includes(text)) throw new Error(`7.5 terminal missing ${text}: ${finalOutput}`);
 }
 await command('./build/calculator_server');
 if (!(await page.locator('#terminal-output').innerText()).includes('addService failed: -17')) throw new Error('Duplicate registration not rejected');
@@ -155,7 +156,7 @@ for (const chapter of ['8.3', '8.4']) {
   await command('make');
   await command('sudo insmod kernel/mini_binder.ko');
   await command('./build/version');
-  if (!(await page.locator('#terminal-output').innerText()).includes('0704')) throw new Error(`Incorrect reused driver version: ${chapter}`);
+  if (!(await page.locator('#terminal-output').innerText()).includes('0705')) throw new Error(`Incorrect reused driver version: ${chapter}`);
   await command('./build/servicemanager');
   await page.locator('.terminal-tab').nth(1).click();
   await page.locator('#terminal-chapter').click();
@@ -167,21 +168,22 @@ for (const chapter of ['8.3', '8.4']) {
   await command('./build/framework_test');
   const output = await page.locator('#terminal-output').innerText();
   const kind = chapter === '8.3' ? 'IPCThreadState' : 'BpBinder';
-  for (const text of [`${kind} add(7, 3) = 10`, `${kind} sub(7, 3) = 4`, 'TLS destruction reclaimed kernel thread records']) {
+  for (const text of [`${kind} add(7, 3) = 10`, `${kind} sub(7, 3) = 4`, 'oneway submitted: 42', 'TLS destruction reclaimed kernel thread records']) {
     if (!output.includes(text)) throw new Error(`Framework terminal ${chapter}: ${text}`);
   }
   await page.locator('.terminal-tab').nth(1).click();
+  if (!(await page.locator('#terminal-output').innerText()).includes('oneway notification: 42')) throw new Error(`Missing notification replay: ${chapter}`);
   await page.locator('#terminal-input').press('Control+c');
   await page.locator('.terminal-tab').first().click();
   await page.locator('#terminal-input').press('Control+c');
   await command('sudo rmmod mini_binder');
 }
 await page.screenshot({ path: '/tmp/binderabc-v3-site.png' });
-const overviewIndex = await page.evaluate(() => window.BINDERABC_DATA.chapters.findIndex(ch => ch.path.endsWith('7.5-driver-api.md')));
+const overviewIndex = await page.evaluate(() => window.BINDERABC_DATA.chapters.findIndex(ch => ch.path.endsWith('7.6-driver-api.md')));
 await page.locator('.chapter-link').nth(overviewIndex).click();
 await page.locator('#terminal-chapter').click();
 await command('pwd');
-if (!(await page.locator('#terminal-output').innerText()).includes('/examples/7.4')) throw new Error('Overview must reuse 7.4 sources');
+if (!(await page.locator('#terminal-output').innerText()).includes('/examples/7.5')) throw new Error('Overview must reuse 7.5 sources');
 await page.locator('#chapter-outline summary').click();
 await page.screenshot({path:'/tmp/binderabc-v3-overview-outline.png'});
 await page.locator('#chapter-outline summary').click();

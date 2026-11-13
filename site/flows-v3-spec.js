@@ -102,7 +102,11 @@ export const v3Specs = [
     u('tests/looper_test.c','read_request(shared_fd, &event)','父进程'), k('ret = receive_request(file, thread, arg)','父进程线程'),
     u('tests/looper_test.c','reply.transaction.size = 4; put32(reply.transaction.data, 22)','父进程'), k('thread->pending_reply = transaction','子进程线程'),
     u('userspace/lab.h','static inline void read_reply','子进程'), u('tests/looper_test.c','== 22); free_reply(fd)','子进程')]), diagram: 1},
-  s('docs/07-protocol/7.4-write-read.md', 'sequence', [
+  s('docs/07-protocol/7.4-oneway.md', 'concept', [
+    c('struct mini_binder_node {'), c('static void queue_request_locked'),
+    c('if (target->async_active)'), c('list_add_tail(&slot->work, &target->async_todo)'),
+    c('static long release_request'), c('queue_request_locked(next)')]),
+  s('docs/07-protocol/7.5-write-read.md', 'sequence', [
     u('userspace/servicemanager.c','MINI_BINDER_REGISTER_MANAGER','ServiceManager'),
     u('userspace/servicemanager.c','command_io(fd, &next, &event)','ServiceManager'),
     u('userspace/calculator_server.c','object_parcel_write(&registration','Server'), k('ret = receive_request(file, thread, arg)','ServiceManager 线程'),
@@ -115,12 +119,12 @@ export const v3Specs = [
     u('userspace/calculator_client.c','call.transaction.target_handle = handle','Client'), k('static long receive_request','Server 线程'),
     u('userspace/calculator_server.c','uint32_t result = tx->code','Server'),
     u('userspace/calculator_client.c','remote %s(7, 3) = %u','Client')]),
-  {...s('docs/07-protocol/7.5-driver-api.md', 'concept', [
+  {...s('docs/07-protocol/7.6-driver-api.md', 'concept', [
     c('file->private_data = ctx'), c('struct mini_binder_proc {'),
     c('struct mini_binder_thread {'), c('struct mini_binder_ref {'),
     c('struct mini_binder_node {'), c('struct transaction_slot {'),
     c('struct transaction_slot *current_transaction;'), c('struct mini_binder_thread *caller;'),
-    c('void *buffer;')]), sourceChapter: '7.4'},
+    c('void *buffer;')]), sourceChapter: '7.5'},
   s('docs/08-framework/8.1-bbinder.md', 'concept', [
     u('userspace/local_demo.cpp', 'IBinder &object = calculator;', '调用线程'),
     u('framework/binder.h', 'class IBinder {', '概念示意'),
@@ -141,7 +145,7 @@ export const v3Specs = [
     u('framework/binder.cpp', 'object->transact(tx.code', '服务端线程'),
     u('framework/calculator.h', 'return reply->writeU32', '服务端线程'),
     u('framework/binder.cpp', 'out.transaction.status = status;', '服务端线程'),
-    u('framework/binder.cpp', 'return talkWithDriver(&out, nullptr);', '服务端线程'),
+    u('framework/binder.cpp', 'return talkWithDriver(&out, nullptr);', '服务端线程', 1),
     u('framework/binder.cpp', 'reply->importData', '客户端线程'),
     u('framework/binder.cpp', 'release.cmd = MINI_BC_FREE_REPLY;', '客户端线程'),
     u('framework/binder.cpp', 'return ret ? ret :', '客户端线程')]),

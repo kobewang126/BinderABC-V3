@@ -8,7 +8,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
-#include "../userspace/command.h"
 
 int main(void)
 {
@@ -19,8 +18,8 @@ int main(void)
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION};
     struct mini_binder_command req = {.cmd = 0};
     assert(fd >= 0 && page > 0);
-    assert(mini_write(fd, &call) == -1 && errno == ENXIO);
-    assert(mini_read(fd, &req) == -1 && errno == ENXIO);
+    assert(ioctl(fd, MINI_BINDER_WRITE, &call) == -1 && errno == ENXIO);
+    assert(ioctl(fd, MINI_BINDER_READ, &req) == -1 && errno == ENXIO);
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED);
     other = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
@@ -29,14 +28,14 @@ int main(void)
     child = fork(); assert(child >= 0);
     if (!child) {
         struct mini_binder_command child_req = {.cmd = 0};
-        assert(mini_write(fd, &call) == -1 && errno == ENXIO);
-        assert(mini_read(fd, &child_req) == -1 && errno == ENXIO);
+        assert(ioctl(fd, MINI_BINDER_WRITE, &call) == -1 && errno == ENXIO);
+        assert(ioctl(fd, MINI_BINDER_READ, &child_req) == -1 && errno == ENXIO);
         _exit(0);
     }
     assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     assert(munmap(mapping, (size_t)page) == 0);
     req.cmd = 0;
-    assert(mini_read(fd, &req) == -1 && errno == ENXIO);
+    assert(ioctl(fd, MINI_BINDER_READ, &req) == -1 && errno == ENXIO);
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED);
     munmap(mapping, (size_t)page); close(fd);

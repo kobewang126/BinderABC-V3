@@ -148,13 +148,15 @@ status_t IPCThreadState::talkWithDriver(mini_binder_command *out, mini_binder_co
     if (::ioctl(process_->driverFD(), MINI_BINDER_WRITE_READ, &bwr) < 0) return -errno;
     return 0;
 }
-status_t IPCThreadState::transact(uint32_t handle, uint32_t code, Parcel &data, Parcel *reply) {
-    if (!reply) return -EINVAL;
+status_t IPCThreadState::transact(uint32_t handle, uint32_t code, Parcel &data, Parcel *reply, uint32_t flags) {
+    if ((flags & ~MINI_TF_ONE_WAY) || (!reply && !(flags & MINI_TF_ONE_WAY))) return -EINVAL;
     mini_binder_command out{}, event{};
     out.cmd = MINI_BC_TRANSACTION;
     out.transaction.target_handle = handle;
     out.transaction.code = code;
+    out.transaction.flags = flags;
     data.exportData(&out.transaction);
+    if (flags & MINI_TF_ONE_WAY) return talkWithDriver(&out, nullptr);
     int ret = talkWithDriver(&out, &event);
     if (ret) return ret; // EINTR cancels the call: do not silently resubmit it.
     if (event.cmd != MINI_BR_REPLY) return -EPROTO;
@@ -180,6 +182,11 @@ status_t IPCThreadState::executeCommand(const mini_binder_command &event) {
     auto object = process_->findObject(tx.object_cookie);
     if (!status) status = object ? object->transact(tx.code, data, &reply) : -ENOENT;
     mini_binder_command out{};
+    // Oneway has no business reply; release the current request to advance its Node queue.
+    if (tx.flags & MINI_TF_ONE_WAY) {
+        out.cmd = MINI_BC_FREE_BUFFER;
+        return talkWithDriver(&out, nullptr);
+    }
     out.cmd = MINI_BC_REPLY;
     out.transaction.status = status;
     if (!status) reply.exportData(&out.transaction);
@@ -202,12 +209,13 @@ status_t IPCThreadState::joinThreadPool() {
     talkWithDriver(&exit, nullptr);
     return ret;
 }
-status_t BBinder::transact(uint32_t code, Parcel &data, Parcel *reply) {
-    if (!reply) return -EINVAL;
-    return onTransact(code, data, reply);
+status_t BBinder::transact(uint32_t code, Parcel &data, Parcel *reply, uint32_t flags) {
+    if ((flags & ~MINI_TF_ONE_WAY) || (!reply && !(flags & MINI_TF_ONE_WAY))) return -EINVAL;
+    Parcel ignored; // A local BBinder still runs on the current thread.
+    return onTransact(code, data, reply ? reply : &ignored);
 }
 status_t BBinder::onTransact(uint32_t, Parcel &, Parcel *) { return -ENOSYS; }
-status_t BpBinder::transact(uint32_t code, Parcel &data, Parcel *reply) {
-    return IPCThreadState::self()->transact(handle_, code, data, reply);
+status_t BpBinder::transact(uint32_t code, Parcel &data, Parcel *reply, uint32_t flags) {
+    return IPCThreadState::self()->transact(handle_, code, data, reply, flags);
 }
 }

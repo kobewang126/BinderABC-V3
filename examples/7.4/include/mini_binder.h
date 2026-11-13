@@ -6,6 +6,7 @@
 #include <linux/types.h>
 
 #define MINI_BINDER_PROTOCOL_VERSION 704U
+#define MINI_TF_ONE_WAY 1U
 #define MINI_BINDER_MAX_DATA 256U
 #define MINI_BINDER_MAX_OBJECTS 8U
 #define MINI_BINDER_OBJECT_LOCAL 1U
@@ -27,6 +28,7 @@ struct mini_binder_transaction_data {
     __u32 size;
     __s32 status;
     __u32 code;
+    __u32 flags;
     __u8 data[MINI_BINDER_MAX_DATA];
 };
 
@@ -36,6 +38,7 @@ enum mini_binder_command_code {
     MINI_BC_FREE_REPLY = 3,
     MINI_BC_ENTER_LOOPER = 4,
     MINI_BC_EXIT_LOOPER = 5,
+    MINI_BC_FREE_BUFFER = 6,
     MINI_BR_TRANSACTION = 101,
     MINI_BR_REPLY = 102,
 };
@@ -45,16 +48,7 @@ struct mini_binder_command {
     struct mini_binder_transaction_data transaction;
 };
 
-/* One command in each direction; consumed fields make retries explicit. */
-struct mini_binder_write_read {
-    __u64 write_size;
-    __u64 write_consumed;
-    __u64 write_buffer;
-    __u64 read_size;
-    __u64 read_consumed;
-    __u64 read_buffer;
-};
-
-#define MINI_BINDER_WRITE_READ _IOWR(MINI_BINDER_IOC_MAGIC, 25, struct mini_binder_write_read)
+#define MINI_BINDER_WRITE _IOW(MINI_BINDER_IOC_MAGIC, 21, struct mini_binder_command)
+#define MINI_BINDER_READ _IOR(MINI_BINDER_IOC_MAGIC, 22, struct mini_binder_command)
 
 #endif

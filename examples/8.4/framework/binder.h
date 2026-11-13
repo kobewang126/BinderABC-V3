@@ -44,13 +44,13 @@ private:
 class IBinder {
 public:
     virtual ~IBinder() = default;
-    virtual status_t transact(uint32_t code, Parcel &data, Parcel *reply) = 0;
+    virtual status_t transact(uint32_t code, Parcel &data, Parcel *reply, uint32_t flags = 0) = 0;
 };
 
 class BBinder : public IBinder {
 public:
     explicit BBinder(uint64_t cookie) : cookie_(cookie) {}
-    status_t transact(uint32_t code, Parcel &data, Parcel *reply) final;
+    status_t transact(uint32_t code, Parcel &data, Parcel *reply, uint32_t flags = 0) final;
     uint64_t cookie() const { return cookie_; }
 protected:
     virtual status_t onTransact(uint32_t code, Parcel &data, Parcel *reply);
@@ -61,7 +61,7 @@ private:
 class BpBinder : public IBinder {
 public:
     explicit BpBinder(uint32_t handle) : handle_(handle) {}
-    status_t transact(uint32_t code, Parcel &data, Parcel *reply) override;
+    status_t transact(uint32_t code, Parcel &data, Parcel *reply, uint32_t flags = 0) override;
     uint32_t handle() const { return handle_; }
 private:
     uint32_t handle_;
@@ -92,7 +92,7 @@ public:
     ~IPCThreadState();
     IPCThreadState(const IPCThreadState &) = delete;
     IPCThreadState &operator=(const IPCThreadState &) = delete;
-    status_t transact(uint32_t handle, uint32_t code, Parcel &data, Parcel *reply);
+    status_t transact(uint32_t handle, uint32_t code, Parcel &data, Parcel *reply, uint32_t flags = 0);
     status_t joinThreadPool(); // Run on this thread; do not create a pthread.
 private:
     IPCThreadState();

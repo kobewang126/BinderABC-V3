@@ -11,11 +11,12 @@ static void serve(int ready, int finish)
     assert(write(ready, "R", 1) == 1); close(ready);
     read_request(fd, &event);
     const unsigned char *data = (const unsigned char *)(uintptr_t)event.transaction.data_address;
-    assert(get32(data) == MINI_BINDER_OBJECT_HANDLE);
-    uint32_t callback = get32(data + 4);
+    struct parcel_object received = read_object(&event.transaction, data);
+    assert(received.type == OBJECT_PARCEL_HANDLE);
+    uint32_t callback = (uint32_t)received.value;
 
     reply.transaction.size = 4; put32(reply.transaction.data, 11);
-    assert(mini_write(fd, &reply) == 0);
+    assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     /* The first transaction is answered before starting the reverse call. */
     transact(fd, callback, 2, &event);
     assert(get32(mapping + event.transaction.reply_offset) == 22); free_reply(fd);
@@ -35,7 +36,7 @@ int main(void)
     unsigned char *mapping = map_buffer(fd);
     call.transaction.code = 1;
     object(&call.transaction, 0, MINI_BINDER_OBJECT_LOCAL, 77);
-    assert(mini_write(fd, &call) == 0);
+    assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
     read_reply(fd, &event);
     assert(get32(mapping + event.transaction.reply_offset) == 11); free_reply(fd);
     puts("ordinary READ: BR_REPLY, result=11");
@@ -46,9 +47,9 @@ int main(void)
     memset(&call, 0, sizeof(call)); call.cmd = MINI_BC_REPLY;
 
     call.transaction.size = 4; put32(call.transaction.data, 22);
-    assert(mini_write(fd, &call) == 0);
+    assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
     call.cmd = MINI_BC_EXIT_LOOPER;
-    assert(mini_write(fd, &call) == 0);
+    assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
     assert(write(finish[1], "F", 1) == 1); close(finish[1]); lab_wait_ok(child);
     unmap_close(fd, mapping);
     puts("BC_REPLY: reverse caller received 22; BC_EXIT_LOOPER completed");

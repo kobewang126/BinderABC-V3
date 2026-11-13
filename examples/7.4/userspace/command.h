@@ -2,27 +2,28 @@
 #ifndef MINI_BINDER_COMMAND_H
 #define MINI_BINDER_COMMAND_H
 #include <errno.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <mini_binder.h>
 
-static inline int command_io(int fd, struct mini_binder_command *out,
-                             struct mini_binder_command *in)
+static inline int exchange_command(int fd, struct mini_binder_command *write_cmd,
+                                   struct mini_binder_command *read_cmd)
 {
-    struct mini_binder_write_read bwr = {
-        .write_size = out ? sizeof(*out) : 0,
-        .write_buffer = (uintptr_t)out,
-        .read_size = in ? sizeof(*in) : 0,
-        .read_buffer = (uintptr_t)in,
-    };
-    return ioctl(fd, MINI_BINDER_WRITE_READ, &bwr);
+    if (write_cmd) {
+        if (ioctl(fd, MINI_BINDER_WRITE, write_cmd) < 0)
+            return -errno;
+    }
+    if (read_cmd) {
+        read_cmd->cmd = 0;
+        if (ioctl(fd, MINI_BINDER_READ, read_cmd) < 0) {
+            int error = -errno;
+            if (write_cmd && write_cmd->cmd == MINI_BC_TRANSACTION) {
+                struct mini_binder_command release = {.cmd = MINI_BC_FREE_REPLY};
+                ioctl(fd, MINI_BINDER_WRITE, &release);
+            }
+            return error;
+        }
+    }
+    return 0;
 }
-static inline int mini_write(int fd, struct mini_binder_command *out)
-{ return command_io(fd, out, NULL); }
-static inline int mini_read(int fd, struct mini_binder_command *in)
-{ return command_io(fd, NULL, in); }
-static inline int exchange_command(int fd, struct mini_binder_command *out,
-                                   struct mini_binder_command *in)
-{ return command_io(fd, out, in) < 0 ? -errno : 0; }
 #endif

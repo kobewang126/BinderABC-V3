@@ -17,7 +17,7 @@
 
 #include <mini_binder.h>
 
-enum rpc_state { RPC_IDLE, RPC_PENDING, RPC_PROCESSING, RPC_DONE, RPC_FAILED, RPC_CANCELLED };
+enum rpc_state { RPC_IDLE, RPC_PENDING, RPC_PROCESSING, RPC_DONE, RPC_FAILED, RPC_CANCELLED, RPC_ASYNC_QUEUED };
 
 struct mini_binder_ref {
     __u64 node_id;
@@ -36,8 +36,10 @@ struct mini_binder_thread {
     struct pid *pid;
     __u32 id;
     struct list_head todo;
+    atomic_t todo_count;
+    wait_queue_head_t wait;
     bool looper;
-    struct transaction_slot *inflight;
+    bool inflight;
     bool reply_ready;
     bool reply_delivered;
     unsigned int reply_index;
@@ -57,6 +59,7 @@ struct mini_binder_proc {
 };
 
 struct transaction_slot {
+    struct mini_binder_node *async_node;
     struct list_head work;
     struct list_head reply_work;
     struct file *receiver;
@@ -70,6 +73,8 @@ struct transaction_slot {
 };
 
 struct mini_binder_node {
+    bool async_active;
+    struct list_head async_todo;
     __u64 id;
     __u64 cookie;
     struct mini_binder_proc *owner;
@@ -104,6 +109,8 @@ static long get_thread_id(struct mini_binder_proc *proc, __u32 *id)
         proc->threads[empty].pid = get_pid(pid);
         proc->threads[empty].id = empty + 1;
         INIT_LIST_HEAD(&proc->threads[empty].todo);
+        atomic_set(&proc->threads[empty].todo_count, 0);
+        init_waitqueue_head(&proc->threads[empty].wait);
         *id = empty + 1;
     }
 out:
@@ -118,7 +125,57 @@ static void drop_fd_set(struct mini_binder_fd_set *fds)
     fds->count = 0;
 }
 
-static void cancel_call_locked(struct mini_binder_proc *proc, struct mini_binder_thread *thread);
+/* state_lock protects Node ordering, both queues and slot lifetime. */
+static void queue_request_locked(struct transaction_slot *slot)
+{
+    struct mini_binder_proc *receiver = slot->receiver->private_data;
+    WRITE_ONCE(slot->state, RPC_PENDING);
+    list_add_tail(&slot->work, &receiver->todo);
+    atomic_inc(&receiver->pending_count);
+}
+
+static void finish_oneway_locked(struct transaction_slot *slot)
+{
+    struct mini_binder_node *node = slot->async_node;
+    bool active = slot->state != RPC_ASYNC_QUEUED;
+    if (slot->state == RPC_PENDING) {
+        struct mini_binder_proc *receiver = slot->receiver->private_data;
+        atomic_dec(&receiver->pending_count);
+    }
+    if (slot->state == RPC_PENDING || slot->state == RPC_ASYNC_QUEUED)
+        list_del_init(&slot->work);
+    drop_fd_set(&slot->request_fds);
+    slot->async_node = NULL;
+    slot->receiver = NULL;
+    WRITE_ONCE(slot->state, RPC_IDLE);
+    if (active) {
+        node->async_active = false;
+        if (!list_empty(&node->async_todo)) {
+            struct transaction_slot *next = list_first_entry(&node->async_todo,
+                                                              struct transaction_slot, work);
+            list_del_init(&next->work);
+            node->async_active = true;
+            queue_request_locked(next);
+        }
+    }
+    wake_up_interruptible_all(&server_wait);
+}
+
+static long release_request(struct file *file, struct mini_binder_thread *thread)
+{
+    struct transaction_slot *slot;
+    long ret = 0;
+    mutex_lock(&state_lock);
+    slot = thread->current_transaction;
+    if (!slot) ret = -ENOENT;
+    else if (slot->receiver != file || !slot->async_node) ret = -EINVAL;
+    else {
+        thread->current_transaction = NULL;
+        finish_oneway_locked(slot);
+    }
+    mutex_unlock(&state_lock);
+    return ret;
+}
 
 static long mini_binder_thread_exit(struct mini_binder_proc *proc)
 {
@@ -130,14 +187,19 @@ static long mini_binder_thread_exit(struct mini_binder_proc *proc)
     for (i = 0; i < ARRAY_SIZE(proc->threads); i++) {
         struct mini_binder_thread *thread = &proc->threads[i];
         if (thread->pid != task_pid(current)) continue;
-        cancel_call_locked(proc, thread);
+        if (thread->inflight || !list_empty(&thread->todo)) {
+            ret = -EBUSY;
+            break;
+        }
         if (thread->current_transaction) {
             struct transaction_slot *slot = thread->current_transaction;
-            if (slot->state == RPC_CANCELLED) {
+            if (slot->async_node) {
+                finish_oneway_locked(slot);
+            } else if (slot->state == RPC_CANCELLED) {
                 WRITE_ONCE(slot->state, RPC_IDLE);
             } else if (slot->state == RPC_PROCESSING) {
                 WRITE_ONCE(slot->state, RPC_FAILED);
-                wake_up_interruptible_all(&server_wait);
+                wake_up_interruptible(&slot->caller->wait);
             }
             thread->current_transaction = NULL;
         }
@@ -208,6 +270,7 @@ static long translate_objects(struct file *sender_file,
                     if (!nodes[j].owner) break;
                 if (j == ARRAY_SIZE(nodes)) { ret = -ENOSPC; goto fail; }
                 if (next_node_id == U64_MAX) { ret = -EOVERFLOW; goto fail; }
+                INIT_LIST_HEAD(&nodes[j].async_todo);
                 nodes[j].id = ++next_node_id;
                 nodes[j].cookie = cookie;
                 nodes[j].owner = sender;
@@ -361,20 +424,26 @@ static int mini_binder_mmap(struct file *file, struct vm_area_struct *vma)
     return ret;
 }
 
-static long submit_transaction(struct file *file, struct mini_binder_thread *thread, void __user *arg)
+static long call_server(struct file *file, struct mini_binder_thread *thread, void __user *arg)
 {
     struct mini_binder_proc *client_ctx = file->private_data;
     struct mini_binder_transaction_data transaction;
     struct mini_binder_proc *server_ctx;
     struct file *receiver;
     struct transaction_slot *slot = NULL;
-    unsigned int i, reply_index;
+    struct mini_binder_node *target = NULL;
+    bool oneway;
+    unsigned int i, reply_index = 0;
     long ret;
 
     if (copy_from_user(&transaction, arg, sizeof(transaction)))
         return -EFAULT;
     if (transaction.size > MINI_BINDER_MAX_DATA)
         return -EMSGSIZE;
+    if (transaction.flags & ~MINI_TF_ONE_WAY) return -EINVAL;
+    oneway = transaction.flags & MINI_TF_ONE_WAY;
+    /* The management endpoint remains a synchronous teaching control channel. */
+    if (oneway && !transaction.target_handle) return -EINVAL;
     mutex_lock(&state_lock);
     if (!client_ctx->buffer || !mapping_valid(client_ctx, current->mm)) {
         ret = -ENXIO;
@@ -384,9 +453,11 @@ static long submit_transaction(struct file *file, struct mini_binder_thread *thr
         ret = -EBUSY;
         goto unlock_state;
     }
-    for (reply_index = 0; reply_index < SLOT_COUNT; reply_index++)
-        if (!(client_ctx->reply_used & (1UL << reply_index))) break;
-    if (reply_index == SLOT_COUNT) { ret = -EBUSY; goto unlock_state; }
+    if (!oneway) {
+        for (reply_index = 0; reply_index < SLOT_COUNT; reply_index++)
+            if (!(client_ctx->reply_used & (1UL << reply_index))) break;
+        if (reply_index == SLOT_COUNT) { ret = -EBUSY; goto unlock_state; }
+    }
     if (transaction.target_handle) {
         __u64 node_id;
         if (transaction.target_handle > ARRAY_SIZE(client_ctx->refs) ||
@@ -395,6 +466,7 @@ static long submit_transaction(struct file *file, struct mini_binder_thread *thr
         for (i = 0; i < ARRAY_SIZE(nodes); i++)
             if (nodes[i].owner && nodes[i].id == node_id) break;
         if (i == ARRAY_SIZE(nodes)) { ret = -ENOENT; goto unlock_state; }
+        target = &nodes[i];
         transaction.object_cookie = nodes[i].cookie;
         receiver = nodes[i].owner->file;
     } else {
@@ -426,85 +498,82 @@ static long submit_transaction(struct file *file, struct mini_binder_thread *thr
     memcpy((char *)server_ctx->buffer + i * MINI_BINDER_MAX_DATA, transaction.data, transaction.size);
     slot->request.size = transaction.size;
     slot->request.code = transaction.code;
+    slot->request.flags = transaction.flags;
     slot->request.object_cookie = transaction.object_cookie;
     slot->request.object_count = transaction.object_count;
     memcpy(slot->request.object_offsets, transaction.object_offsets, sizeof(transaction.object_offsets));
     WRITE_ONCE(slot->receiver, receiver);
-    slot->caller = thread;
-    slot->caller_proc = client_ctx;
-    client_ctx->reply_used |= 1UL << reply_index;
-    thread->reply_index = reply_index;
-    thread->inflight = slot;
-    WRITE_ONCE(slot->state, RPC_PENDING);
-    list_add_tail(&slot->work, &server_ctx->todo);
-    atomic_inc(&server_ctx->pending_count);
+    slot->async_node = oneway ? target : NULL;
+    if (oneway) {
+        /* Accepted work must not retain pointers into the sending thread/proc. */
+        slot->caller = NULL;
+        slot->caller_proc = NULL;
+        if (target->async_active) {
+            WRITE_ONCE(slot->state, RPC_ASYNC_QUEUED);
+            list_add_tail(&slot->work, &target->async_todo);
+        } else {
+            target->async_active = true;
+            queue_request_locked(slot);
+        }
+    } else {
+        slot->caller = thread;
+        slot->caller_proc = client_ctx;
+        client_ctx->reply_used |= 1UL << reply_index;
+        thread->reply_index = reply_index;
+        thread->inflight = true;
+        WRITE_ONCE(slot->state, RPC_PENDING);
+        list_add_tail(&slot->work, &server_ctx->todo);
+        atomic_inc(&server_ctx->pending_count);
+    }
     mutex_unlock(&state_lock);
     wake_up_interruptible_all(&server_wait);
 
-    return 0;
+    if (oneway) return 0; // Submission is complete; no business reply will arrive.
+
+    ret = wait_event_interruptible(thread->wait,
+            atomic_read(&thread->todo_count) || READ_ONCE(slot->state) == RPC_FAILED);
+    mutex_lock(&state_lock);
+    if (slot->state == RPC_DONE) {
+        list_del_init(&slot->reply_work);
+        atomic_dec(&thread->todo_count);
+    }
+    if (!ret && slot->state == RPC_DONE) {
+        transaction.size = slot->reply.size;
+        transaction.status = slot->reply.status;
+        transaction.object_count = slot->reply.object_count;
+        memcpy(transaction.object_offsets, slot->reply.object_offsets, sizeof(transaction.object_offsets));
+        transaction.reply_offset = (thread->reply_index + SLOT_COUNT) * MINI_BINDER_MAX_DATA;
+        memcpy((char *)client_ctx->buffer + transaction.reply_offset, slot->reply.data, slot->reply.size);
+        transaction.object_cookie = 0;
+        thread->reply_fds = slot->reply_fds;
+        slot->reply_fds.count = 0;
+        thread->pending_reply = transaction;
+        WRITE_ONCE(thread->reply_ready, true);
+        thread->reply_delivered = false;
+    } else if (!ret) {
+        ret = -EPIPE;
+    }
+    if (slot->state == RPC_PENDING) {
+        struct mini_binder_proc *receiver_ctx = slot->receiver->private_data;
+        list_del_init(&slot->work);
+        atomic_dec(&receiver_ctx->pending_count);
+        drop_fd_set(&slot->request_fds);
+    }
+    if (ret && slot->state == RPC_PROCESSING)
+        WRITE_ONCE(slot->state, RPC_CANCELLED);
+    else
+        WRITE_ONCE(slot->state, RPC_IDLE);
+    if (!thread->reply_ready) {
+        drop_fd_set(&slot->reply_fds);
+        client_ctx->reply_used &= ~(1UL << thread->reply_index);
+    }
+    thread->inflight = false;
+    mutex_unlock(&state_lock);
+    return ret;
 
 unlock_state:
     mutex_unlock(&state_lock);
     return ret;
-}
-
-/* state_lock is held. Detach caller pointers before its proc can disappear. */
-static void cancel_call_locked(struct mini_binder_proc *proc, struct mini_binder_thread *thread)
-{
-    struct transaction_slot *slot = thread->inflight;
-    if (!slot) return;
-    if (slot->state == RPC_PENDING) {
-        struct mini_binder_proc *receiver = slot->receiver->private_data;
-        list_del_init(&slot->work);
-        atomic_dec(&receiver->pending_count);
-        drop_fd_set(&slot->request_fds);
-    }
-    if (slot->state == RPC_DONE) {
-        list_del_init(&slot->reply_work);
-    }
-    drop_fd_set(&slot->reply_fds);
-    if (slot->state == RPC_PROCESSING)
-        WRITE_ONCE(slot->state, RPC_CANCELLED);
-    else
-        WRITE_ONCE(slot->state, RPC_IDLE);
-    slot->caller = NULL;
-    slot->caller_proc = NULL;
-    thread->inflight = NULL;
-    proc->reply_used &= ~(1UL << thread->reply_index);
-}
-
-static bool call_ready(struct mini_binder_thread *thread)
-{
-    struct transaction_slot *slot = READ_ONCE(thread->inflight);
-    return slot && (READ_ONCE(slot->state) == RPC_DONE || READ_ONCE(slot->state) == RPC_FAILED);
-}
-
-/* Move completed thread work into the reply mapping; called under state_lock. */
-static long collect_reply_locked(struct mini_binder_proc *proc, struct mini_binder_thread *thread)
-{
-    struct transaction_slot *slot = thread->inflight;
-    struct mini_binder_transaction_data *reply = &thread->pending_reply;
-    if (slot->state == RPC_FAILED) {
-        cancel_call_locked(proc, thread);
-        return -EPIPE;
-    }
-    list_del_init(&slot->reply_work);
-    memset(reply, 0, sizeof(*reply));
-    reply->size = slot->reply.size;
-    reply->status = slot->reply.status;
-    reply->object_count = slot->reply.object_count;
-    memcpy(reply->object_offsets, slot->reply.object_offsets, sizeof(reply->object_offsets));
-    reply->reply_offset = (thread->reply_index + SLOT_COUNT) * MINI_BINDER_MAX_DATA;
-    memcpy((char *)proc->buffer + reply->reply_offset, slot->reply.data, slot->reply.size);
-    thread->reply_fds = slot->reply_fds;
-    slot->reply_fds.count = 0;
-    thread->reply_ready = true;
-    thread->reply_delivered = false;
-    thread->inflight = NULL;
-    slot->caller = NULL;
-    slot->caller_proc = NULL;
-    WRITE_ONCE(slot->state, RPC_IDLE);
-    return 0;
 }
 
 static long release_reply(struct file *file, struct mini_binder_thread *thread)
@@ -553,10 +622,12 @@ static long receive_request(struct file *file, struct mini_binder_thread *thread
         i = slot - slots;
         list_del_init(&slot->work);
         atomic_dec(&ctx->pending_count);
+        WRITE_ONCE(slot->state, RPC_PROCESSING);
 
         delivered.transaction.data_address = user_base + i * MINI_BINDER_MAX_DATA;
         delivered.transaction.size = slot->request.size;
         delivered.transaction.code = slot->request.code;
+        delivered.transaction.flags = slot->request.flags;
         delivered.transaction.object_cookie = slot->request.object_cookie;
         delivered.transaction.object_count = slot->request.object_count;
         memcpy(delivered.transaction.object_offsets, slot->request.object_offsets, sizeof(delivered.transaction.object_offsets));
@@ -564,8 +635,9 @@ static long receive_request(struct file *file, struct mini_binder_thread *thread
         ret = reserve_fds(&slot->request_fds, (char *)ctx->buffer + i * MINI_BINDER_MAX_DATA, reserved);
         if (ret) {
             drop_fd_set(&slot->request_fds);
-            WRITE_ONCE(slot->state, RPC_FAILED);
-            wake_up_interruptible_all(&server_wait);
+            if (slot->async_node) finish_oneway_locked(slot);
+            else WRITE_ONCE(slot->state, RPC_FAILED);
+            if (slot->caller) wake_up_interruptible(&slot->caller->wait);
             mutex_unlock(&state_lock);
             return ret;
         }
@@ -573,8 +645,9 @@ static long receive_request(struct file *file, struct mini_binder_thread *thread
         if (copy_to_user(arg, &delivered, sizeof(delivered))) {
             release_reserved_fds(&slot->request_fds, reserved);
             drop_fd_set(&slot->request_fds);
-            WRITE_ONCE(slot->state, RPC_FAILED);
-            wake_up_interruptible_all(&server_wait);
+            if (slot->async_node) finish_oneway_locked(slot);
+            else WRITE_ONCE(slot->state, RPC_FAILED);
+            if (slot->caller) wake_up_interruptible(&slot->caller->wait);
             mutex_unlock(&state_lock);
             return -EFAULT;
         }
@@ -605,6 +678,8 @@ static long send_reply(struct file *file, struct mini_binder_thread *thread, voi
         ret = -ENOENT;
     else if (slot->receiver != file)
         ret = -EPERM;
+    else if (slot->async_node)
+        ret = -EINVAL;
     else if (slot->state == RPC_CANCELLED) {
         WRITE_ONCE(slot->state, RPC_IDLE);
         ret = -ECANCELED;
@@ -618,8 +693,9 @@ static long send_reply(struct file *file, struct mini_binder_thread *thread, voi
         ret = translate_objects(file, slot->caller_proc, &slot->reply, &slot->reply_fds);
         if (!ret) {
             list_add_tail(&slot->reply_work, &slot->caller->todo);
+            atomic_inc(&slot->caller->todo_count);
             WRITE_ONCE(slot->state, RPC_DONE);
-            wake_up_interruptible_all(&server_wait);
+            wake_up_interruptible(&slot->caller->wait);
         }
     }
     if (!ret || ret == -ECANCELED)
@@ -636,11 +712,13 @@ static long write_command(struct file *file, struct mini_binder_thread *thread, 
         return -EFAULT;
     switch (command) {
     case MINI_BC_TRANSACTION:
-        return submit_transaction(file, thread, &write_cmd->transaction);
+        return call_server(file, thread, &write_cmd->transaction);
     case MINI_BC_REPLY:
         return send_reply(file, thread, &write_cmd->transaction);
     case MINI_BC_FREE_REPLY:
         return release_reply(file, thread);
+    case MINI_BC_FREE_BUFFER:
+        return release_request(file, thread);
     case MINI_BC_ENTER_LOOPER:
     case MINI_BC_EXIT_LOOPER: {
         long ret = 0;
@@ -671,13 +749,8 @@ static long read_command(struct file *file, struct mini_binder_thread *thread, v
     for (;;) {
         mutex_lock(&state_lock);
         if (!mapping_valid(ctx, current->mm)) {
-            cancel_call_locked(ctx, thread);
             mutex_unlock(&state_lock);
             return -ENXIO;
-        }
-        if (call_ready(thread)) {
-            ret = collect_reply_locked(ctx, thread);
-            if (ret) { mutex_unlock(&state_lock); return ret; }
         }
         if (thread->reply_ready && !thread->reply_delivered) {
             reply.transaction = thread->pending_reply;
@@ -695,48 +768,15 @@ static long read_command(struct file *file, struct mini_binder_thread *thread, v
         }
         looper = thread->looper;
         mutex_unlock(&state_lock);
-        if (looper && !READ_ONCE(thread->inflight)) {
+        if (looper) {
             ret = receive_request(file, thread, arg);
             if (ret != -EAGAIN) return ret;
         }
         ret = wait_event_interruptible(server_wait,
-                call_ready(thread) ||
-                (looper && !READ_ONCE(thread->inflight) && atomic_read(&ctx->pending_count)) ||
-                !mapping_valid(ctx, current->mm));
-        if (ret) {
-            mutex_lock(&state_lock);
-            cancel_call_locked(ctx, thread);
-            mutex_unlock(&state_lock);
-            return ret;
-        }
-    }
-}
-
-static long write_read(struct file *file, struct mini_binder_thread *thread, void __user *arg)
-{
-    struct mini_binder_write_read bwr;
-    struct mini_binder_write_read __user *user = arg;
-    const size_t packet = sizeof(struct mini_binder_command);
-    long ret;
-
-    if (copy_from_user(&bwr, arg, sizeof(bwr))) return -EFAULT;
-    if ((bwr.write_size && bwr.write_size != packet) ||
-        (bwr.read_size && bwr.read_size != packet) ||
-        (bwr.write_consumed && bwr.write_consumed != bwr.write_size) ||
-        (bwr.read_consumed && bwr.read_consumed != bwr.read_size)) return -EINVAL;
-    /* Verify the control block is writable before submitting any command. */
-    if (copy_to_user(arg, &bwr, sizeof(bwr))) return -EFAULT;
-    if (bwr.write_size && !bwr.write_consumed) {
-        ret = write_command(file, thread, u64_to_user_ptr(bwr.write_buffer));
+                (READ_ONCE(thread->reply_ready) && !READ_ONCE(thread->reply_delivered)) ||
+                (looper && atomic_read(&ctx->pending_count)) || !mapping_valid(ctx, current->mm));
         if (ret) return ret;
-        if (put_user(bwr.write_size, &user->write_consumed)) return -EFAULT;
     }
-    if (bwr.read_size && !bwr.read_consumed) {
-        ret = read_command(file, thread, u64_to_user_ptr(bwr.read_buffer));
-        if (ret) return ret;
-        if (put_user(bwr.read_size, &user->read_consumed)) return -EFAULT;
-    }
-    return 0;
 }
 
 static long mini_binder_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
@@ -749,7 +789,7 @@ static long mini_binder_ioctl(struct file *file, unsigned int cmd, unsigned long
 
     if (cmd == MINI_BINDER_THREAD_EXIT)
         return mini_binder_thread_exit(file->private_data);
-    if (cmd == MINI_BINDER_WRITE_READ || cmd == MINI_BINDER_GET_THREAD_ID) {
+    if (cmd == MINI_BINDER_WRITE || cmd == MINI_BINDER_READ || cmd == MINI_BINDER_GET_THREAD_ID) {
         ret = get_thread_id(file->private_data, &thread_id);
         if (ret) return ret;
         if (cmd == MINI_BINDER_GET_THREAD_ID)
@@ -767,8 +807,10 @@ static long mini_binder_ioctl(struct file *file, unsigned int cmd, unsigned long
         mutex_unlock(&state_lock);
         return ret;
     }
-    case MINI_BINDER_WRITE_READ:
-        return write_read(file, thread, user_arg);
+    case MINI_BINDER_WRITE:
+        return write_command(file, thread, user_arg);
+    case MINI_BINDER_READ:
+        return read_command(file, thread, user_arg);
     default:
         return -ENOTTY;
     }
@@ -782,8 +824,10 @@ static int mini_binder_release(struct inode *inode, struct file *file)
     (void)inode;
     mutex_lock(&state_lock);
     {
-        for (i = 0; i < ARRAY_SIZE(ctx->threads); i++)
-            cancel_call_locked(ctx, &ctx->threads[i]);
+        for (i = 0; i < SLOT_COUNT; i++) {
+            if (slots[i].receiver == file && slots[i].async_node)
+                finish_oneway_locked(&slots[i]);
+        }
         if (server_file == file) WRITE_ONCE(server_file, NULL);
         for (i = 0; i < ARRAY_SIZE(nodes); i++)
             if (nodes[i].owner == ctx) memset(&nodes[i], 0, sizeof(nodes[i]));
@@ -794,14 +838,14 @@ static int mini_binder_release(struct inode *inode, struct file *file)
                 atomic_dec(&ctx->pending_count);
                 drop_fd_set(&slots[i].request_fds);
             }
-            /* A completed reply owns its files and no longer needs the server. */
             if (slots[i].state == RPC_DONE) {
-                slots[i].receiver = NULL;
-                continue;
+                list_del_init(&slots[i].reply_work);
+                atomic_dec(&slots[i].caller->todo_count);
+                drop_fd_set(&slots[i].reply_fds);
             }
-            if (slots[i].state == RPC_PENDING || slots[i].state == RPC_PROCESSING) {
+            if (slots[i].state == RPC_PENDING || slots[i].state == RPC_PROCESSING || slots[i].state == RPC_DONE) {
                 WRITE_ONCE(slots[i].state, RPC_FAILED);
-                wake_up_interruptible_all(&server_wait);
+                wake_up_interruptible(&slots[i].caller->wait);
             } else if (slots[i].state == RPC_CANCELLED) {
                 WRITE_ONCE(slots[i].state, RPC_IDLE);
             }

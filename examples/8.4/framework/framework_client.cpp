@@ -23,6 +23,9 @@ int main() {
             std::printf("BpBinder %s(7, 3) = %u\n", code == kAdd ? "add" : "sub", result);
             if (result != (code == kAdd ? 10U : 4U)) return 1;
         }
+        Parcel notice;
+        if (notice.writeU32(42) || service.transact(kNotify, notice, nullptr, MINI_TF_ONE_WAY)) return 1;
+        std::puts("oneway submitted: 42 (business completion is not acknowledged)");
         return 0;
     } catch (const std::exception &error) {
         std::fprintf(stderr, "%s\n", error.what());

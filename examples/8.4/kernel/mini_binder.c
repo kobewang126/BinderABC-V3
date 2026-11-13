@@ -17,7 +17,7 @@
 
 #include <mini_binder.h>
 
-enum rpc_state { RPC_IDLE, RPC_PENDING, RPC_PROCESSING, RPC_DONE, RPC_FAILED, RPC_CANCELLED };
+enum rpc_state { RPC_IDLE, RPC_PENDING, RPC_PROCESSING, RPC_DONE, RPC_FAILED, RPC_CANCELLED, RPC_ASYNC_QUEUED };
 
 struct mini_binder_ref {
     __u64 node_id;
@@ -57,6 +57,7 @@ struct mini_binder_proc {
 };
 
 struct transaction_slot {
+    struct mini_binder_node *async_node;
     struct list_head work;
     struct list_head reply_work;
     struct file *receiver;
@@ -70,6 +71,8 @@ struct transaction_slot {
 };
 
 struct mini_binder_node {
+    bool async_active;
+    struct list_head async_todo;
     __u64 id;
     __u64 cookie;
     struct mini_binder_proc *owner;
@@ -120,6 +123,58 @@ static void drop_fd_set(struct mini_binder_fd_set *fds)
 
 static void cancel_call_locked(struct mini_binder_proc *proc, struct mini_binder_thread *thread);
 
+/* state_lock protects Node ordering, both queues and slot lifetime. */
+static void queue_request_locked(struct transaction_slot *slot)
+{
+    struct mini_binder_proc *receiver = slot->receiver->private_data;
+    WRITE_ONCE(slot->state, RPC_PENDING);
+    list_add_tail(&slot->work, &receiver->todo);
+    atomic_inc(&receiver->pending_count);
+}
+
+static void finish_oneway_locked(struct transaction_slot *slot)
+{
+    struct mini_binder_node *node = slot->async_node;
+    bool active = slot->state != RPC_ASYNC_QUEUED;
+    if (slot->state == RPC_PENDING) {
+        struct mini_binder_proc *receiver = slot->receiver->private_data;
+        atomic_dec(&receiver->pending_count);
+    }
+    if (slot->state == RPC_PENDING || slot->state == RPC_ASYNC_QUEUED)
+        list_del_init(&slot->work);
+    drop_fd_set(&slot->request_fds);
+    slot->async_node = NULL;
+    slot->receiver = NULL;
+    WRITE_ONCE(slot->state, RPC_IDLE);
+    if (active) {
+        node->async_active = false;
+        if (!list_empty(&node->async_todo)) {
+            struct transaction_slot *next = list_first_entry(&node->async_todo,
+                                                              struct transaction_slot, work);
+            list_del_init(&next->work);
+            node->async_active = true;
+            queue_request_locked(next);
+        }
+    }
+    wake_up_interruptible_all(&server_wait);
+}
+
+static long release_request(struct file *file, struct mini_binder_thread *thread)
+{
+    struct transaction_slot *slot;
+    long ret = 0;
+    mutex_lock(&state_lock);
+    slot = thread->current_transaction;
+    if (!slot) ret = -ENOENT;
+    else if (slot->receiver != file || !slot->async_node) ret = -EINVAL;
+    else {
+        thread->current_transaction = NULL;
+        finish_oneway_locked(slot);
+    }
+    mutex_unlock(&state_lock);
+    return ret;
+}
+
 static long mini_binder_thread_exit(struct mini_binder_proc *proc)
 {
     struct pid *pid = NULL;
@@ -133,7 +188,9 @@ static long mini_binder_thread_exit(struct mini_binder_proc *proc)
         cancel_call_locked(proc, thread);
         if (thread->current_transaction) {
             struct transaction_slot *slot = thread->current_transaction;
-            if (slot->state == RPC_CANCELLED) {
+            if (slot->async_node) {
+                finish_oneway_locked(slot);
+            } else if (slot->state == RPC_CANCELLED) {
                 WRITE_ONCE(slot->state, RPC_IDLE);
             } else if (slot->state == RPC_PROCESSING) {
                 WRITE_ONCE(slot->state, RPC_FAILED);
@@ -208,6 +265,7 @@ static long translate_objects(struct file *sender_file,
                     if (!nodes[j].owner) break;
                 if (j == ARRAY_SIZE(nodes)) { ret = -ENOSPC; goto fail; }
                 if (next_node_id == U64_MAX) { ret = -EOVERFLOW; goto fail; }
+                INIT_LIST_HEAD(&nodes[j].async_todo);
                 nodes[j].id = ++next_node_id;
                 nodes[j].cookie = cookie;
                 nodes[j].owner = sender;
@@ -368,13 +426,19 @@ static long submit_transaction(struct file *file, struct mini_binder_thread *thr
     struct mini_binder_proc *server_ctx;
     struct file *receiver;
     struct transaction_slot *slot = NULL;
-    unsigned int i, reply_index;
+    struct mini_binder_node *target = NULL;
+    bool oneway;
+    unsigned int i, reply_index = 0;
     long ret;
 
     if (copy_from_user(&transaction, arg, sizeof(transaction)))
         return -EFAULT;
     if (transaction.size > MINI_BINDER_MAX_DATA)
         return -EMSGSIZE;
+    if (transaction.flags & ~MINI_TF_ONE_WAY) return -EINVAL;
+    oneway = transaction.flags & MINI_TF_ONE_WAY;
+    /* The management endpoint remains a synchronous teaching control channel. */
+    if (oneway && !transaction.target_handle) return -EINVAL;
     mutex_lock(&state_lock);
     if (!client_ctx->buffer || !mapping_valid(client_ctx, current->mm)) {
         ret = -ENXIO;
@@ -384,9 +448,11 @@ static long submit_transaction(struct file *file, struct mini_binder_thread *thr
         ret = -EBUSY;
         goto unlock_state;
     }
-    for (reply_index = 0; reply_index < SLOT_COUNT; reply_index++)
-        if (!(client_ctx->reply_used & (1UL << reply_index))) break;
-    if (reply_index == SLOT_COUNT) { ret = -EBUSY; goto unlock_state; }
+    if (!oneway) {
+        for (reply_index = 0; reply_index < SLOT_COUNT; reply_index++)
+            if (!(client_ctx->reply_used & (1UL << reply_index))) break;
+        if (reply_index == SLOT_COUNT) { ret = -EBUSY; goto unlock_state; }
+    }
     if (transaction.target_handle) {
         __u64 node_id;
         if (transaction.target_handle > ARRAY_SIZE(client_ctx->refs) ||
@@ -395,6 +461,7 @@ static long submit_transaction(struct file *file, struct mini_binder_thread *thr
         for (i = 0; i < ARRAY_SIZE(nodes); i++)
             if (nodes[i].owner && nodes[i].id == node_id) break;
         if (i == ARRAY_SIZE(nodes)) { ret = -ENOENT; goto unlock_state; }
+        target = &nodes[i];
         transaction.object_cookie = nodes[i].cookie;
         receiver = nodes[i].owner->file;
     } else {
@@ -426,18 +493,33 @@ static long submit_transaction(struct file *file, struct mini_binder_thread *thr
     memcpy((char *)server_ctx->buffer + i * MINI_BINDER_MAX_DATA, transaction.data, transaction.size);
     slot->request.size = transaction.size;
     slot->request.code = transaction.code;
+    slot->request.flags = transaction.flags;
     slot->request.object_cookie = transaction.object_cookie;
     slot->request.object_count = transaction.object_count;
     memcpy(slot->request.object_offsets, transaction.object_offsets, sizeof(transaction.object_offsets));
     WRITE_ONCE(slot->receiver, receiver);
-    slot->caller = thread;
-    slot->caller_proc = client_ctx;
-    client_ctx->reply_used |= 1UL << reply_index;
-    thread->reply_index = reply_index;
-    thread->inflight = slot;
-    WRITE_ONCE(slot->state, RPC_PENDING);
-    list_add_tail(&slot->work, &server_ctx->todo);
-    atomic_inc(&server_ctx->pending_count);
+    slot->async_node = oneway ? target : NULL;
+    if (oneway) {
+        /* Accepted work must not retain pointers into the sending thread/proc. */
+        slot->caller = NULL;
+        slot->caller_proc = NULL;
+        if (target->async_active) {
+            WRITE_ONCE(slot->state, RPC_ASYNC_QUEUED);
+            list_add_tail(&slot->work, &target->async_todo);
+        } else {
+            target->async_active = true;
+            queue_request_locked(slot);
+        }
+    } else {
+        slot->caller = thread;
+        slot->caller_proc = client_ctx;
+        client_ctx->reply_used |= 1UL << reply_index;
+        thread->reply_index = reply_index;
+        thread->inflight = slot;
+        WRITE_ONCE(slot->state, RPC_PENDING);
+        list_add_tail(&slot->work, &server_ctx->todo);
+        atomic_inc(&server_ctx->pending_count);
+    }
     mutex_unlock(&state_lock);
     wake_up_interruptible_all(&server_wait);
 
@@ -553,10 +635,12 @@ static long receive_request(struct file *file, struct mini_binder_thread *thread
         i = slot - slots;
         list_del_init(&slot->work);
         atomic_dec(&ctx->pending_count);
+        WRITE_ONCE(slot->state, RPC_PROCESSING);
 
         delivered.transaction.data_address = user_base + i * MINI_BINDER_MAX_DATA;
         delivered.transaction.size = slot->request.size;
         delivered.transaction.code = slot->request.code;
+        delivered.transaction.flags = slot->request.flags;
         delivered.transaction.object_cookie = slot->request.object_cookie;
         delivered.transaction.object_count = slot->request.object_count;
         memcpy(delivered.transaction.object_offsets, slot->request.object_offsets, sizeof(delivered.transaction.object_offsets));
@@ -564,7 +648,8 @@ static long receive_request(struct file *file, struct mini_binder_thread *thread
         ret = reserve_fds(&slot->request_fds, (char *)ctx->buffer + i * MINI_BINDER_MAX_DATA, reserved);
         if (ret) {
             drop_fd_set(&slot->request_fds);
-            WRITE_ONCE(slot->state, RPC_FAILED);
+            if (slot->async_node) finish_oneway_locked(slot);
+            else WRITE_ONCE(slot->state, RPC_FAILED);
             wake_up_interruptible_all(&server_wait);
             mutex_unlock(&state_lock);
             return ret;
@@ -573,7 +658,8 @@ static long receive_request(struct file *file, struct mini_binder_thread *thread
         if (copy_to_user(arg, &delivered, sizeof(delivered))) {
             release_reserved_fds(&slot->request_fds, reserved);
             drop_fd_set(&slot->request_fds);
-            WRITE_ONCE(slot->state, RPC_FAILED);
+            if (slot->async_node) finish_oneway_locked(slot);
+            else WRITE_ONCE(slot->state, RPC_FAILED);
             wake_up_interruptible_all(&server_wait);
             mutex_unlock(&state_lock);
             return -EFAULT;
@@ -605,6 +691,8 @@ static long send_reply(struct file *file, struct mini_binder_thread *thread, voi
         ret = -ENOENT;
     else if (slot->receiver != file)
         ret = -EPERM;
+    else if (slot->async_node)
+        ret = -EINVAL;
     else if (slot->state == RPC_CANCELLED) {
         WRITE_ONCE(slot->state, RPC_IDLE);
         ret = -ECANCELED;
@@ -641,6 +729,8 @@ static long write_command(struct file *file, struct mini_binder_thread *thread, 
         return send_reply(file, thread, &write_cmd->transaction);
     case MINI_BC_FREE_REPLY:
         return release_reply(file, thread);
+    case MINI_BC_FREE_BUFFER:
+        return release_request(file, thread);
     case MINI_BC_ENTER_LOOPER:
     case MINI_BC_EXIT_LOOPER: {
         long ret = 0;
@@ -784,6 +874,10 @@ static int mini_binder_release(struct inode *inode, struct file *file)
     {
         for (i = 0; i < ARRAY_SIZE(ctx->threads); i++)
             cancel_call_locked(ctx, &ctx->threads[i]);
+        for (i = 0; i < SLOT_COUNT; i++) {
+            if (slots[i].receiver == file && slots[i].async_node)
+                finish_oneway_locked(&slots[i]);
+        }
         if (server_file == file) WRITE_ONCE(server_file, NULL);
         for (i = 0; i < ARRAY_SIZE(nodes); i++)
             if (nodes[i].owner == ctx) memset(&nodes[i], 0, sizeof(nodes[i]));

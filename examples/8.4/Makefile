@@ -9,7 +9,7 @@ KDIR ?= /lib/modules/$(shell uname -r)/build
 all: module userspace
 module:
 	$(MAKE) -C $(KDIR) M=$(CURDIR)/kernel modules
-userspace: build/framework_test build/framework_server build/framework_client build/service_exit_test build/version build/object_demo build/protocol_test build/manager_test build/mapping_test build/stale_reply build/server_death build/looper_test build/looper_demo build/servicemanager build/calculator_server build/calculator_client build/write_read_test build/thread_reply_test build/parcel_test build/parcel_binding_test build/service_parcel_test
+userspace: build/oneway_test build/framework_test build/framework_server build/framework_client build/service_exit_test build/version build/object_demo build/protocol_test build/manager_test build/mapping_test build/stale_reply build/server_death build/looper_test build/looper_demo build/servicemanager build/calculator_server build/calculator_client build/write_read_test build/thread_reply_test build/parcel_test build/parcel_binding_test build/service_parcel_test
 build/version: userspace/version.c include/mini_binder.h
 	mkdir -p build
 	$(CC) $(CFLAGS) -Iinclude $< -o $@

@@ -20,6 +20,9 @@ int main() {
     uint32_t result;
     assert(local_reply.readU32(&result) == 0 && result == 10);
     std::puts("local BBinder::transact -> onTransact: 10");
+    Parcel local_notice = arguments(7, 3);
+    assert(binder.transact(kAdd, local_notice, nullptr, MINI_TF_ONE_WAY) == 0);
+    assert(local_notice.atEnd()); // Local dispatch completed on this very thread.
     auto process = ProcessState::self();
     auto registered = std::make_shared<Calculator>();
     assert(process->addObject(registered) == 0);
@@ -29,6 +32,8 @@ int main() {
     assert(getCalculator(&handle) == 0);
     BpBinder remote(handle);
     Parcel empty, rejected;
+    assert(remote.transact(kAdd, empty, nullptr) == -EINVAL);
+    assert(remote.transact(kAdd, empty, nullptr, 2) == -EINVAL);
     assert(remote.transact(999, empty, &rejected) == -ENOSYS);
     assert(remote.transact(kAdd, empty, &rejected) == -EINVAL);
     // Save a reply, run another transaction on the same thread, then read the old one.

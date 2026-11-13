@@ -83,7 +83,7 @@ public:
     ~IPCThreadState();
     IPCThreadState(const IPCThreadState &) = delete;
     IPCThreadState &operator=(const IPCThreadState &) = delete;
-    status_t transact(uint32_t handle, uint32_t code, Parcel &data, Parcel *reply);
+    status_t transact(uint32_t handle, uint32_t code, Parcel &data, Parcel *reply, uint32_t flags = 0);
     status_t joinThreadPool(); // Run on this thread; do not create a pthread.
 private:
     IPCThreadState();

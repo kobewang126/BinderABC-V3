@@ -81,8 +81,9 @@
 | [7.1](../07-protocol/7.1-auto-node.md) | 怎样撤掉显式 Node 创建？ | object_demo | 反复传同一 LOCAL 复用 handle，随后成功调用对象 |
 | [7.2](../07-protocol/7.2-handle-routing.md) | 普通调用是否还需要公开 Node ID？ | object_demo（manager_test 为额外验收） | 只使用管理入口 0 和本地 handle，功能仍完整 |
 | [7.3](../07-protocol/7.3-looper-events.md) | 同一 READ 怎样区分请求和回复？ | looper_demo | 普通线程得到 BR_REPLY；进入 looper 后得到 BR_TRANSACTION |
-| [7.4](../07-protocol/7.4-write-read.md) | 怎样统一通信入口并完成完整服务流程？ | 三个独立程序 | 注册 calculator、查询 handle、调用加减并得到结果 |
-| [7.5](../07-protocol/7.5-driver-api.md) | 怎样从整体理解最终驱动接口与结构？ | 复用 7.4 三个独立程序 | 区分 ioctl、cmd、code，追踪 handle 到 Node 与原调用线程 |
+| [7.4](../07-protocol/7.4-oneway.md) | 不等业务回复时，谁保证顺序和回收？ | oneway_test --demo | 两次提交先返回，同 Node 第二笔等第一笔释放后交付 |
+| [7.5](../07-protocol/7.5-write-read.md) | 怎样统一通信入口并完成完整服务流程？ | 三个独立程序 | 注册 calculator、查询 handle、调用加减并得到结果 |
+| [7.6](../07-protocol/7.6-driver-api.md) | 怎样从整体理解最终驱动接口与结构？ | 复用 7.5 三个独立程序 | 区分 ioctl、cmd、code，追踪 handle 到 Node 与原调用线程 |
 
 ## 主实验与额外回归
 
@@ -90,7 +91,7 @@
 
 线程和槽位实验中的一字节负载只是区分请求的标记，不是在重新设计 Parcel。服务名、对象和 fd 的主实验沿用已有 Parcel/object_parcel；边界测试可以手工构造无效字节包，不能把这些反例当作业务编码方式。
 
-7.4 是综合实验。先运行三个程序并追踪成功调用，再阅读 consumed、复制失败和退出回收；不要求第一遍把所有异常分支都学完。
+7.5 是综合实验。先运行三个程序并追踪成功调用，再阅读 consumed、复制失败和退出回收；不要求第一遍把所有异常分支都学完。
 
 ## 第 8 篇
 

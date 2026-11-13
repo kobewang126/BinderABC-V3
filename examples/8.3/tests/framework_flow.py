@@ -36,6 +36,7 @@ try:
     expect(server, 'BBinder calculator registered: LOCAL(cookie=123)')
     output = run('framework_client').stdout
     assert 'IPCThreadState add(7, 3) = 10' in output and 'IPCThreadState sub(7, 3) = 4' in output
+    expect(server, 'oneway notification: 42')
     run('framework_test')
     run('calculator_client')  # old C client -> new C++ BBinder
     run('service_parcel_test')

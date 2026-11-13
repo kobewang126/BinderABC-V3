@@ -147,10 +147,10 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   }
   const versions = { '1.2': '1', '1.3': '3', '1.4': '4', '2.1': '0201', '2.3': '0203', '2.4': '0204', '2.5': '0205', '2.6': '0206', '2.7': '0207' };
   for (const part of [3, 4, 5, 6, 7]) for (let chapter = 1; chapter <= 7; chapter++) versions[`${part}.${chapter}`] = `0${part}0${chapter}`;
-  for (const chapter of ['8.2', '8.3', '8.4']) versions[chapter] = '0704';
+  for (const chapter of ['8.2', '8.3', '8.4']) versions[chapter] = '0705';
   const chapterTests = {
     '8.1': { local_demo: 'local BBinder add(7, 3) = 10\nlocal BBinder sub(7, 3) = 4', local_test: 'local dispatch, malformed arguments and reused C Parcel boundaries passed' },
-    '8.2': { process_demo: 'two threads: one ProcessState, shared device fd; protocol=0704\ncookie 123 -> local BBinder: add(7, 3) = 10' },
+    '8.2': { process_demo: 'two threads: one ProcessState, shared device fd; protocol=0705\ncookie 123 -> local BBinder: add(7, 3) = 10' },
     '3.1': { object_test: 'two objects, invalid target and code, recovery passed' },
     "3.3": { object_parcel_test: "Parcel: 32 bytes, 2 objects\noffsets[0]=4 -> LOCAL, value=0x1122334455667788\noffsets[1]=20 -> HANDLE, value=0x9\nordinary integers at offsets 0 and 16 are not object entries\nregression: reject overlap, out-of-range offsets, invalid type and insufficient space\nobject offsets, decoding, malformed data and rollback passed" },
     "3.4": { ref_test: "file A: local add object -> handle 1, add(7, 3) = 10\nfile B: local multiply object -> handle 1, mul(7, 3) = 21\nsame handle number, separate open files, different Nodes\nregression: invalid handle, malformed object table and a fresh process\nper-file handles, node conversion and calls passed" },
@@ -188,7 +188,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     looper_demo: 'ordinary READ: BR_REPLY, result=11\nBC_ENTER_LOOPER: current thread can receive process requests\nsame READ: BR_TRANSACTION, cookie=77\nBC_REPLY: reverse caller received 22; BC_EXIT_LOOPER completed',
     looper_test: "ordinary caller: unified READ returned BR_REPLY without entering looper\nordinary reader: did not steal queued request or another thread's reply\nlooper READ 1: BR_REPLY, result=11 (own reply has priority)\nlooper READ 2: BR_TRANSACTION, cookie=77\nENTER/EXIT checks, interrupted READ and unmap wakeup passed"
   });
-  chapterTests['7.4'] = {
+  chapterTests['7.5'] = {
     write_read_test: 'write-only returned before server received request\nread retry preserved write_consumed: each request submitted exactly once\nclosing callers before receive reclaimed pending slots\nclosing callers after receive detached pointers; late replies rejected\nthread-exit cancellation and completed reply after server close passed',
     parcel_binding_test: 'name + LOCAL Parcel matches existing wire format; sequential decoding passed\nHANDLE/FD codec, malformed offsets, truncated objects and failed-write rollback passed'
   };
@@ -224,7 +224,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   Object.assign(chapterTests['7.3'] ||= {}, {
     service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
   });
-  Object.assign(chapterTests['7.4'] ||= {}, {
+  Object.assign(chapterTests['7.5'] ||= {}, {
     thread_reply_test: "thread 1: 10 -> 11, offset 512\nthread 2: 20 -> 21, offset 768\nreverse replies, thread isolation, full slots and reuse passed",
     service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
   });
@@ -254,7 +254,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
       line('模拟回放：未实际运行程序。', 'info');
       return line(demoOutputs[ch][name]);
     }
-    if (['7.4', '8.3', '8.4'].includes(ch) && ['servicemanager', 'calculator_server', 'calculator_client', 'service_parcel_test', 'framework_server', 'framework_client', 'framework_test'].includes(name)) {
+    if (['7.5', '8.3', '8.4'].includes(ch) && ['servicemanager', 'calculator_server', 'calculator_client', 'service_parcel_test', 'framework_server', 'framework_client', 'framework_test'].includes(name)) {
       const manager = sessions.find(item => item.server === 'manager');
       const provider = sessions.find(item => item.server === 'provider');
       if (name === 'servicemanager') {
@@ -288,9 +288,17 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
       if (name === 'framework_client') {
         const kind = ch === '8.3' ? 'IPCThreadState' : 'BpBinder';
         line('模拟回放：未实际运行程序。', 'info');
-        return line(`${kind} calculator: handle=1\n${kind} add(7, 3) = 10\n${kind} sub(7, 3) = 4`);
+        serviceLog('provider', 'oneway notification: 42');
+        return line(`${kind} calculator: handle=1\n${kind} add(7, 3) = 10\n${kind} sub(7, 3) = 4\noneway submitted: 42 (business completion is not acknowledged)`);
       }
       return line('getService(calculator): client handle=1\nremote add(7, 3) = 10\nremote sub(7, 3) = 4');
+    }
+    if (['7.4', '7.5', '8.2', '8.3', '8.4'].includes(ch) && name === 'oneway_test') {
+      if (args.length && !(args.length === 1 && args[0] === '--demo')) return error('oneway_test: 不支持的参数');
+      line('模拟回放：未实际运行线程或驱动。', 'info');
+      line('same Node: second worker slept until first FREE_BUFFER; FIFO 1 -> 2');
+      if (args[0] === '--demo') return line('two notifications submitted before workers ran; both completed without BC_REPLY');
+      return line('submission returned before processing; 12 slots reused; different Nodes ran concurrently; sender close passed\nFD request survived sender close; service THREAD_EXIT advanced the Node queue\nfailed request delivery reclaimed the first slot and advanced its Node queue\nreceiver exit reclaimed active and queued oneway work; invalid flags/reply/free and capacity checks passed');
     }
     if (name === 'version') {
       if (!args.length) return line(`mini-binder protocol version: ${versions[ch]}`);
@@ -467,7 +475,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
   render();
   return { setChapter(path) {
     let chapter = path.split('/').at(-1).match(/^(\d+\.\d+)-/)?.[1];
-    if (chapter === '7.5') chapter = '7.4';
+    if (chapter === '7.6') chapter = '7.5';
     chapterDir = !chapter || chapter === '0.3' ? '/examples' : `/examples/${chapter}`;
     $('terminal-chapter').title = `进入当前章节目录 ${chapterDir}`;
   } };

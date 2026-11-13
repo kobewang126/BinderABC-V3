@@ -1,0 +1,418 @@
+ENVIRONMENT Linux 6.8.0-147-generic aarch64 GNU/Linux
+RUN 7.4 sudo insmod kernel/mini_binder.ko
+RUN 7.4 ./build/version
+mini-binder protocol version: 0704
+RUN 7.4 ./build/oneway_test
+same Node: second worker slept until first FREE_BUFFER; FIFO 1 -> 2
+submission returned before processing; 12 slots reused; different Nodes ran concurrently; sender close passed
+FD request survived sender close; service THREAD_EXIT advanced the Node queue
+failed request delivery reclaimed the first slot and advanced its Node queue
+receiver exit reclaimed active and queued oneway work; invalid flags/reply/free and capacity checks passed
+RUN 7.4 ./build/protocol_test
+failed translations rolled back; eight Nodes fit; repeated objects reuse handles
+handle returned to owner as LOCAL; reply reused original handle
+request/reply fds, EFAULT and EMFILE retry passed
+RUN 7.4 ./build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 7.4 ./build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 7.4 ./build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 7.4 ./build/server_death
+server death wakes both clients with EPIPE
+RUN 7.4 ./build/looper_test
+ordinary caller: unified READ returned BR_REPLY without entering looper
+ordinary reader: did not steal queued request or another thread's reply
+looper READ 1: BR_REPLY, result=11 (own reply has priority)
+looper READ 2: BR_TRANSACTION, cookie=77
+ENTER/EXIT checks, interrupted READ and unmap wakeup passed
+RUN 7.4 ./build/looper_demo
+ordinary READ: BR_REPLY, result=11
+BC_ENTER_LOOPER: current thread can receive process requests
+same READ: BR_TRANSACTION, cookie=77
+BC_REPLY: reverse caller received 22; BC_EXIT_LOOPER completed
+RUN 7.4 ./build/service_exit_test
+service thread exit: waiting caller received EPIPE
+cancelled transaction and repeated thread records reclaimed
+next service thread: reply = 42; slots reused
+RUN 7.4 ./build/parcel_binding_test
+Parcel wire compatibility, sequential objects and boundary checks passed
+RUN 7.4 sudo rmmod mini_binder
+CHAPTER PASS 7.4
+RUN 7.5 sudo insmod kernel/mini_binder.ko
+RUN 7.5 ./build/version
+mini-binder protocol version: 0705
+RUN 7.5 ./build/oneway_test
+same Node: second worker slept until first FREE_BUFFER; FIFO 1 -> 2
+submission returned before processing; 12 slots reused; different Nodes ran concurrently; sender close passed
+FD request survived sender close; service THREAD_EXIT advanced the Node queue
+failed request delivery reclaimed the first slot and advanced its Node queue
+receiver exit reclaimed active and queued oneway work; invalid flags/reply/free and capacity checks passed
+RUN 7.5 python3 tests/service_flow.py
+ServiceManager ready: handle 0
+getService(missing): -2
+calculator registered: LOCAL(cookie=123)
+getService(calculator): client handle=1
+remote add(7, 3) = 10
+remote sub(7, 3) = 4
+getService(calculator): client handle=1
+remote add(7, 3) = 10
+remote sub(7, 3) = 4
+two concurrent clients received their own results
+Parcel RPC: truncated name/arguments and trailing arguments rejected; valid call recovered
+duplicate registration rejected: EEXIST
+three standalone processes: register, get and call passed
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(1, 2) = 3
+addService(calculator): manager handle=1
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+RUN 7.5 ./build/protocol_test
+failed translations rolled back; eight Nodes fit; repeated objects reuse handles
+handle returned to owner as LOCAL; reply reused original handle
+request/reply fds, EFAULT and EMFILE retry passed
+RUN 7.5 ./build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 7.5 ./build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 7.5 ./build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 7.5 ./build/server_death
+server death wakes both clients with EPIPE
+RUN 7.5 ./build/looper_test
+ordinary caller: unified READ returned BR_REPLY without entering looper
+ordinary reader: did not steal queued request or another thread's reply
+looper READ 1: BR_REPLY, result=11 (own reply has priority)
+looper READ 2: BR_TRANSACTION, cookie=77
+ENTER/EXIT checks, interrupted READ and unmap wakeup passed
+RUN 7.5 ./build/looper_demo
+ordinary READ: BR_REPLY, result=11
+BC_ENTER_LOOPER: current thread can receive process requests
+same READ: BR_TRANSACTION, cookie=77
+BC_REPLY: reverse caller received 22; BC_EXIT_LOOPER completed
+RUN 7.5 ./build/write_read_test
+write-only returned before server received request
+read retry preserved write_consumed: each request submitted exactly once
+closing callers before receive reclaimed pending slots
+closing callers after receive detached pointers; late replies rejected
+thread-exit cancellation and completed reply after server close passed
+RUN 7.5 ./build/thread_reply_test
+thread 1: 10 -> 11, offset 512
+thread 2: 20 -> 21, offset 768
+reverse replies, thread isolation, full slots and reuse passed
+RUN 7.5 ./build/service_exit_test
+service thread exit: waiting caller received EPIPE
+cancelled transaction and repeated thread records reclaimed
+next service thread: reply = 42; slots reused
+RUN 7.5 ./build/parcel_test
+parcel tests passed
+RUN 7.5 ./build/parcel_binding_test
+name + LOCAL Parcel matches existing wire format; sequential decoding passed
+HANDLE/FD codec, malformed offsets, truncated objects and failed-write rollback passed
+RUN 7.5 sudo rmmod mini_binder
+CHAPTER PASS 7.5
+RUN 8.2 sudo insmod kernel/mini_binder.ko
+RUN 8.2 ./build/version
+mini-binder protocol version: 0705
+RUN 8.2 ./build/oneway_test
+same Node: second worker slept until first FREE_BUFFER; FIFO 1 -> 2
+submission returned before processing; 12 slots reused; different Nodes ran concurrently; sender close passed
+FD request survived sender close; service THREAD_EXIT advanced the Node queue
+failed request delivery reclaimed the first slot and advanced its Node queue
+receiver exit reclaimed active and queued oneway work; invalid flags/reply/free and capacity checks passed
+RUN 8.2 ./build/process_demo
+two threads: one ProcessState, shared device fd; protocol=0705
+cookie 123 -> local BBinder: add(7, 3) = 10
+RUN 8.2 python3 tests/service_flow.py
+ServiceManager ready: handle 0
+getService(missing): -2
+calculator registered: LOCAL(cookie=123)
+getService(calculator): client handle=1
+remote add(7, 3) = 10
+remote sub(7, 3) = 4
+getService(calculator): client handle=1
+remote add(7, 3) = 10
+remote sub(7, 3) = 4
+two concurrent clients received their own results
+Parcel RPC: truncated name/arguments and trailing arguments rejected; valid call recovered
+duplicate registration rejected: EEXIST
+three standalone processes: register, get and call passed
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(1, 2) = 3
+addService(calculator): manager handle=1
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+RUN 8.2 ./build/protocol_test
+failed translations rolled back; eight Nodes fit; repeated objects reuse handles
+handle returned to owner as LOCAL; reply reused original handle
+request/reply fds, EFAULT and EMFILE retry passed
+RUN 8.2 ./build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 8.2 ./build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 8.2 ./build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 8.2 ./build/server_death
+server death wakes both clients with EPIPE
+RUN 8.2 ./build/looper_test
+ordinary caller: unified READ returned BR_REPLY without entering looper
+ordinary reader: did not steal queued request or another thread's reply
+looper READ 1: BR_REPLY, result=11 (own reply has priority)
+looper READ 2: BR_TRANSACTION, cookie=77
+ENTER/EXIT checks, interrupted READ and unmap wakeup passed
+RUN 8.2 ./build/looper_demo
+ordinary READ: BR_REPLY, result=11
+BC_ENTER_LOOPER: current thread can receive process requests
+same READ: BR_TRANSACTION, cookie=77
+BC_REPLY: reverse caller received 22; BC_EXIT_LOOPER completed
+RUN 8.2 ./build/write_read_test
+write-only returned before server received request
+read retry preserved write_consumed: each request submitted exactly once
+closing callers before receive reclaimed pending slots
+closing callers after receive detached pointers; late replies rejected
+thread-exit cancellation and completed reply after server close passed
+RUN 8.2 ./build/thread_reply_test
+thread 2: 10 -> 11, offset 768
+thread 1: 20 -> 21, offset 512
+reverse replies, thread isolation, full slots and reuse passed
+RUN 8.2 ./build/service_exit_test
+service thread exit: waiting caller received EPIPE
+cancelled transaction and repeated thread records reclaimed
+next service thread: reply = 42; slots reused
+RUN 8.2 ./build/parcel_test
+parcel tests passed
+RUN 8.2 ./build/parcel_binding_test
+name + LOCAL Parcel matches existing wire format; sequential decoding passed
+HANDLE/FD codec, malformed offsets, truncated objects and failed-write rollback passed
+RUN 8.2 sudo rmmod mini_binder
+CHAPTER PASS 8.2
+RUN 8.3 sudo insmod kernel/mini_binder.ko
+RUN 8.3 ./build/version
+mini-binder protocol version: 0705
+RUN 8.3 ./build/oneway_test
+same Node: second worker slept until first FREE_BUFFER; FIFO 1 -> 2
+submission returned before processing; 12 slots reused; different Nodes ran concurrently; sender close passed
+FD request survived sender close; service THREAD_EXIT advanced the Node queue
+failed request delivery reclaimed the first slot and advanced its Node queue
+receiver exit reclaimed active and queued oneway work; invalid flags/reply/free and capacity checks passed
+RUN 8.3 python3 tests/framework_flow.py
+ServiceManager ready: handle 0
+getService: -2
+BBinder calculator registered: LOCAL(cookie=123)
+IPCThreadState calculator: handle=1
+IPCThreadState add(7, 3) = 10
+IPCThreadState sub(7, 3) = 4
+oneway submitted: 42 (business completion is not acknowledged)
+oneway notification: 42
+local BBinder::transact -> onTransact: 10
+unknown code and truncated Parcel rejected; owned reply survived buffer reuse
+two calling threads: same ProcessState/fd, distinct IPCThreadState and correct replies
+12 successive calling threads: TLS destruction reclaimed kernel thread records
+C++ Parcel reused the C object codec, including 64-bit cookies and capacity checks
+getService(calculator): client handle=1
+remote add(7, 3) = 10
+remote sub(7, 3) = 4
+Parcel RPC: truncated name/arguments and trailing arguments rejected; valid call recovered
+addService: -17
+C ServiceManager + C++ server/client; C client interoperability and regressions passed
+RUN 8.3 python3 tests/service_flow.py
+ServiceManager ready: handle 0
+getService(missing): -2
+calculator registered: LOCAL(cookie=123)
+getService(calculator): client handle=1
+remote add(7, 3) = 10
+remote sub(7, 3) = 4
+getService(calculator): client handle=1
+remote add(7, 3) = 10
+remote sub(7, 3) = 4
+two concurrent clients received their own results
+Parcel RPC: truncated name/arguments and trailing arguments rejected; valid call recovered
+duplicate registration rejected: EEXIST
+three standalone processes: register, get and call passed
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(1, 2) = 3
+addService(calculator): manager handle=1
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+RUN 8.3 ./build/protocol_test
+failed translations rolled back; eight Nodes fit; repeated objects reuse handles
+handle returned to owner as LOCAL; reply reused original handle
+request/reply fds, EFAULT and EMFILE retry passed
+RUN 8.3 ./build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 8.3 ./build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 8.3 ./build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 8.3 ./build/server_death
+server death wakes both clients with EPIPE
+RUN 8.3 ./build/looper_test
+ordinary caller: unified READ returned BR_REPLY without entering looper
+ordinary reader: did not steal queued request or another thread's reply
+looper READ 1: BR_REPLY, result=11 (own reply has priority)
+looper READ 2: BR_TRANSACTION, cookie=77
+ENTER/EXIT checks, interrupted READ and unmap wakeup passed
+RUN 8.3 ./build/looper_demo
+ordinary READ: BR_REPLY, result=11
+BC_ENTER_LOOPER: current thread can receive process requests
+same READ: BR_TRANSACTION, cookie=77
+BC_REPLY: reverse caller received 22; BC_EXIT_LOOPER completed
+RUN 8.3 ./build/write_read_test
+write-only returned before server received request
+read retry preserved write_consumed: each request submitted exactly once
+closing callers before receive reclaimed pending slots
+closing callers after receive detached pointers; late replies rejected
+thread-exit cancellation and completed reply after server close passed
+RUN 8.3 ./build/thread_reply_test
+thread 1: 10 -> 11, offset 512
+thread 2: 20 -> 21, offset 768
+reverse replies, thread isolation, full slots and reuse passed
+RUN 8.3 ./build/service_exit_test
+service thread exit: waiting caller received EPIPE
+cancelled transaction and repeated thread records reclaimed
+next service thread: reply = 42; slots reused
+RUN 8.3 ./build/parcel_test
+parcel tests passed
+RUN 8.3 ./build/parcel_binding_test
+name + LOCAL Parcel matches existing wire format; sequential decoding passed
+HANDLE/FD codec, malformed offsets, truncated objects and failed-write rollback passed
+RUN 8.3 sudo rmmod mini_binder
+CHAPTER PASS 8.3
+RUN 8.4 sudo insmod kernel/mini_binder.ko
+RUN 8.4 ./build/version
+mini-binder protocol version: 0705
+RUN 8.4 ./build/oneway_test
+same Node: second worker slept until first FREE_BUFFER; FIFO 1 -> 2
+submission returned before processing; 12 slots reused; different Nodes ran concurrently; sender close passed
+FD request survived sender close; service THREAD_EXIT advanced the Node queue
+failed request delivery reclaimed the first slot and advanced its Node queue
+receiver exit reclaimed active and queued oneway work; invalid flags/reply/free and capacity checks passed
+RUN 8.4 python3 tests/framework_flow.py
+ServiceManager ready: handle 0
+getService: -2
+BBinder calculator registered: LOCAL(cookie=123)
+BpBinder calculator: handle=1
+BpBinder add(7, 3) = 10
+BpBinder sub(7, 3) = 4
+oneway submitted: 42 (business completion is not acknowledged)
+oneway notification: 42
+local BBinder::transact -> onTransact: 10
+unknown code and truncated Parcel rejected; owned reply survived buffer reuse
+two calling threads: same ProcessState/fd, distinct IPCThreadState and correct replies
+12 successive calling threads: TLS destruction reclaimed kernel thread records
+C++ Parcel reused the C object codec, including 64-bit cookies and capacity checks
+getService(calculator): client handle=1
+remote add(7, 3) = 10
+remote sub(7, 3) = 4
+Parcel RPC: truncated name/arguments and trailing arguments rejected; valid call recovered
+addService: -17
+C ServiceManager + C++ server/client; C client interoperability and regressions passed
+RUN 8.4 python3 tests/service_flow.py
+ServiceManager ready: handle 0
+getService(missing): -2
+calculator registered: LOCAL(cookie=123)
+getService(calculator): client handle=1
+remote add(7, 3) = 10
+remote sub(7, 3) = 4
+getService(calculator): client handle=1
+remote add(7, 3) = 10
+remote sub(7, 3) = 4
+two concurrent clients received their own results
+Parcel RPC: truncated name/arguments and trailing arguments rejected; valid call recovered
+duplicate registration rejected: EEXIST
+three standalone processes: register, get and call passed
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(7, 3) = 10
+sub(7, 3) = 4
+add(1, 2) = 3
+addService(calculator): manager handle=1
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+getService(calculator): return HANDLE object
+RUN 8.4 ./build/protocol_test
+failed translations rolled back; eight Nodes fit; repeated objects reuse handles
+handle returned to owner as LOCAL; reply reused original handle
+request/reply fds, EFAULT and EMFILE retry passed
+RUN 8.4 ./build/manager_test
+service calculator: registered, found and called (result 42)
+manager handle 0: add, get, call and manager exit passed
+RUN 8.4 ./build/mapping_test
+one read-only mapping, address-space check and remapping passed
+RUN 8.4 ./build/stale_reply
+cancelled reply discarded; next client received correct result
+RUN 8.4 ./build/server_death
+server death wakes both clients with EPIPE
+RUN 8.4 ./build/looper_test
+ordinary caller: unified READ returned BR_REPLY without entering looper
+ordinary reader: did not steal queued request or another thread's reply
+looper READ 1: BR_REPLY, result=11 (own reply has priority)
+looper READ 2: BR_TRANSACTION, cookie=77
+ENTER/EXIT checks, interrupted READ and unmap wakeup passed
+RUN 8.4 ./build/looper_demo
+ordinary READ: BR_REPLY, result=11
+BC_ENTER_LOOPER: current thread can receive process requests
+same READ: BR_TRANSACTION, cookie=77
+BC_REPLY: reverse caller received 22; BC_EXIT_LOOPER completed
+RUN 8.4 ./build/write_read_test
+write-only returned before server received request
+read retry preserved write_consumed: each request submitted exactly once
+closing callers before receive reclaimed pending slots
+closing callers after receive detached pointers; late replies rejected
+thread-exit cancellation and completed reply after server close passed
+RUN 8.4 ./build/thread_reply_test
+thread 2: 10 -> 11, offset 768
+thread 1: 20 -> 21, offset 512
+reverse replies, thread isolation, full slots and reuse passed
+RUN 8.4 ./build/service_exit_test
+service thread exit: waiting caller received EPIPE
+cancelled transaction and repeated thread records reclaimed
+next service thread: reply = 42; slots reused
+RUN 8.4 ./build/parcel_test
+parcel tests passed
+RUN 8.4 ./build/parcel_binding_test
+name + LOCAL Parcel matches existing wire format; sequential decoding passed
+HANDLE/FD codec, malformed offsets, truncated objects and failed-write rollback passed
+RUN 8.4 sudo rmmod mini_binder
+CHAPTER PASS 8.4
+ALL ONEWAY CHAPTERS PASSED

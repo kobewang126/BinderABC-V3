@@ -14,21 +14,40 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
-#include "command.h"
+#include <parcel_binding.h>
 
-static inline void put32(unsigned char *p, uint32_t n)
-{ for (int i = 0; i < 4; i++) p[i] = (unsigned char)(n >> (8 * i)); }
-static inline uint32_t get32(const unsigned char *p)
-{ return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
+static inline void put32(unsigned char *data, uint32_t value)
+{
+    struct parcel p; parcel_init(&p, data, 4);
+    assert(parcel_write_u32(&p, value) == 0);
+}
+static inline uint32_t get32(const unsigned char *data)
+{
+    struct parcel p; uint32_t value;
+    parcel_init(&p, (void *)data, 4); p.size = 4;
+    assert(parcel_read_u32(&p, &value) == 0); return value;
+}
 static inline void object(struct mini_binder_transaction_data *tx, unsigned int index, uint32_t type, uint64_t value)
 {
-    unsigned int offset = index * 12;
+    struct object_parcel p;
     assert(index < MINI_BINDER_MAX_OBJECTS);
-    tx->object_offsets[index] = offset;
-    tx->object_count = index + 1; tx->size = offset + 12;
-    put32(tx->data + offset, type);
-    put32(tx->data + offset + 4, (uint32_t)value);
-    put32(tx->data + offset + 8, (uint32_t)(value >> 32));
+    object_parcel_init(&p, tx->data, sizeof(tx->data));
+    if (index) {
+        assert(tx->object_count == index);
+        p.bytes.size = tx->size; p.count = index;
+        memcpy(p.offsets, tx->object_offsets, index * sizeof(p.offsets[0]));
+    }
+    assert(object_parcel_write(&p, type, value) == 0);
+    parcel_to_transaction(tx, &p);
+}
+static inline struct parcel_object read_object(const struct mini_binder_transaction_data *tx,
+                                               const void *data)
+{
+    struct object_parcel p;
+    struct parcel_object value;
+    assert(parcel_from_transaction(&p, tx, data) == 0 && p.count == 1);
+    assert(object_parcel_read_next(&p, &value) == 0);
+    return value;
 }
 static inline unsigned char *map_buffer(int fd)
 {
@@ -40,28 +59,28 @@ static inline void unmap_close(int fd, void *mapping)
 static inline void free_reply(int fd)
 {
     struct mini_binder_command cmd = {.cmd = MINI_BC_FREE_REPLY};
-    assert(mini_write(fd, &cmd) == 0);
+    assert(ioctl(fd, MINI_BINDER_WRITE, &cmd) == 0);
 }
 static inline void enter_loop(int fd)
 {
     struct mini_binder_command cmd = {.cmd = MINI_BC_ENTER_LOOPER};
-    assert(mini_write(fd, &cmd) == 0);
+    assert(ioctl(fd, MINI_BINDER_WRITE, &cmd) == 0);
 }
 static inline void read_request(int fd, struct mini_binder_command *event)
 {
     memset(event, 0, sizeof(*event));
-    assert(mini_read(fd, event) == 0 && event->cmd == MINI_BR_TRANSACTION);
+    assert(ioctl(fd, MINI_BINDER_READ, event) == 0 && event->cmd == MINI_BR_TRANSACTION);
 }
 static inline void read_reply(int fd, struct mini_binder_command *event)
 {
     memset(event, 0, sizeof(*event));
-    assert(mini_read(fd, event) == 0 && event->cmd == MINI_BR_REPLY);
+    assert(ioctl(fd, MINI_BINDER_READ, event) == 0 && event->cmd == MINI_BR_REPLY);
 }
 static inline void transact(int fd, uint32_t handle, uint32_t code, struct mini_binder_command *event)
 {
     struct mini_binder_command cmd = {.cmd = MINI_BC_TRANSACTION};
     cmd.transaction.target_handle = handle; cmd.transaction.code = code;
-    assert(mini_write(fd, &cmd) == 0);
+    assert(ioctl(fd, MINI_BINDER_WRITE, &cmd) == 0);
     read_reply(fd, event);
 }
 static inline void lab_wait_ok(pid_t child)

@@ -1,0 +1,21 @@
+make: Entering directory '/usr/src/linux-headers-6.8.0-147-generic'
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: aarch64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  You are using:           gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  CC [M]  /home/ubuntu/binderabc-oneway-check/mutant/kernel/mini_binder.o
+  MODPOST /home/ubuntu/binderabc-oneway-check/mutant/kernel/Module.symvers
+  CC [M]  /home/ubuntu/binderabc-oneway-check/mutant/kernel/mini_binder.mod.o
+  LD [M]  /home/ubuntu/binderabc-oneway-check/mutant/kernel/mini_binder.ko
+  BTF [M] /home/ubuntu/binderabc-oneway-check/mutant/kernel/mini_binder.ko
+Skipping BTF generation for /home/ubuntu/binderabc-oneway-check/mutant/kernel/mini_binder.ko due to unavailability of vmlinux
+make: Leaving directory '/usr/src/linux-headers-6.8.0-147-generic'
+oneway_test: tests/oneway_test.c:73: await_sleeping_ioctl: Assertion `!"second worker did not sleep in READ"' failed.
+NEGATIVE PASS: bypassed Node queue -> oneway demo failed, rc -6
+same Node: second worker slept until first FREE_BUFFER; FIFO 1 -> 2
+two notifications submitted before workers ran; both completed without BC_REPLY
+same Node: second worker slept until first FREE_BUFFER; FIFO 1 -> 2
+submission returned before processing; 12 slots reused; different Nodes ran concurrently; sender close passed
+FD request survived sender close; service THREAD_EXIT advanced the Node queue
+failed request delivery reclaimed the first slot and advanced its Node queue
+receiver exit reclaimed active and queued oneway work; invalid flags/reply/free and capacity checks passed
+RESTORED PASS: unmodified chapter driver passed demo and complete tests
