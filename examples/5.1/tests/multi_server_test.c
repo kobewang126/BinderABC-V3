@@ -12,13 +12,14 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 
 static void server(int pipefd, uint32_t value)
 {
     int fd = open("/dev/mini_binder", O_RDWR);
     struct mini_binder_node_create node = {.cookie = 42};
     long page = sysconf(_SC_PAGESIZE);
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     assert(mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0) != MAP_FAILED);
     assert(ioctl(fd, MINI_BINDER_CREATE_NODE, &node) == 0);
     assert(write(pipefd, &node.node_id, sizeof(node.node_id)) == sizeof(node.node_id));
@@ -26,7 +27,7 @@ static void server(int pipefd, uint32_t value)
     for (;;) {
         struct mini_binder_command read_cmd = {0};
         struct mini_binder_command reply = {.cmd = MINI_BC_REPLY};
-        assert(ioctl(fd, MINI_BINDER_READ, &read_cmd) == 0);
+        assert(read_request(fd, &read_cmd) == 0);
         assert(read_cmd.cmd == MINI_BR_TRANSACTION);
         assert(read_cmd.transaction.target_node == node.node_id);
         assert(read_cmd.transaction.object_cookie == 42);
@@ -45,9 +46,9 @@ static int call(int fd, const void *mapping, uint64_t node, uint32_t expected)
     uint32_t result;
     request.transaction.target_node = node;
     if (ioctl(fd, MINI_BINDER_WRITE, &request) < 0) return -errno;
-    assert(ioctl(fd, MINI_BINDER_READ, &response) == 0);
+    assert(read_reply(fd, &response) == 0);
     assert(response.cmd == MINI_BR_REPLY && response.transaction.size == sizeof(result));
-    __builtin_memcpy(&result, mapping, sizeof(result));
+    __builtin_memcpy(&result, (const char *)mapping + 2 * MINI_BINDER_MAX_DATA, sizeof(result));
     assert(result == expected);
     assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
     return 0;

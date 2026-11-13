@@ -29,7 +29,7 @@ static void *receive_and_wait(void *data)
 #if MINI_BINDER_PROTOCOL_VERSION >= 703
     struct mini_binder_command enter = {.cmd = MINI_BC_ENTER_LOOPER};
     if (exchange_command(s->fd, &enter, NULL)) _exit(1);
-#elif MINI_BINDER_PROTOCOL_VERSION >= 504
+#elif MINI_BINDER_PROTOCOL_VERSION >= 406
     event.cmd = MINI_READ_REQUEST;
 #endif
     if (exchange_command(s->fd, NULL, &event) || event.cmd != MINI_BR_TRANSACTION ||
@@ -61,9 +61,6 @@ int main(void)
         struct service service = {.fd = fd, .notify = received[1]};
         close(ready[0]); close(received[0]);
         if (fd < 0 || page <= 0) _exit(1);
-#ifdef MINI_BINDER_REGISTER_SERVER
-        if (ioctl(fd, MINI_BINDER_REGISTER_SERVER)) _exit(1);
-#endif
         if (ioctl(fd, MINI_BINDER_REGISTER_MANAGER) ||
             mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0) == MAP_FAILED) _exit(1);
         for (int j = 0; j < 2; j++)

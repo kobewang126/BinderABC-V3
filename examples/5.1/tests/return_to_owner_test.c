@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 
 static void put32(unsigned char *p, uint32_t value)
 { for (int i = 0; i < 4; i++) p[i] = (unsigned char)(value >> (8 * i)); }
@@ -42,14 +43,14 @@ static void peer(int send_id, int receive_id)
     struct mini_binder_node_create node = {.cookie = 77};
     struct mini_binder_command req = {0}, reply = {.cmd = MINI_BC_REPLY};
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION}, result = {0};
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     mapping = map(fd);
     assert(ioctl(fd, MINI_BINDER_CREATE_NODE, &node) == 0);
     assert(write(send_id, &node.node_id, sizeof(node.node_id)) == sizeof(node.node_id));
     close(send_id);
     assert(read(receive_id, &owner_node, sizeof(owner_node)) == sizeof(owner_node));
     close(receive_id);
-    assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
+    assert(read_request(fd, &req) == 0);
     payload = (const unsigned char *)(uintptr_t)req.transaction.data_address;
     assert(req.transaction.object_count == 1 && get32(payload) == MINI_BINDER_OBJECT_HANDLE);
     handle = get32(payload + 4);
@@ -65,7 +66,7 @@ static void peer(int send_id, int receive_id)
     call.transaction.object_count = 1;
     put_object(call.transaction.data, MINI_BINDER_OBJECT_HANDLE, handle);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &result) == 0);
+    assert(read_reply(fd, &result) == 0);
     assert(result.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA);
     assert(result.transaction.size == 4 && get32(mapping + result.transaction.reply_offset) == 42);
     free_reply(fd);
@@ -90,7 +91,7 @@ int main(void)
     close(a_to_b[0]); close(b_to_a[1]);
     assert(read(b_to_a[0], &peer_node, sizeof(peer_node)) == sizeof(peer_node)); close(b_to_a[0]);
     fd = open("/dev/mini_binder", O_RDWR);
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     mapping = map(fd);
     assert(ioctl(fd, MINI_BINDER_CREATE_NODE, &node) == 0);
     assert(write(a_to_b[1], &node.node_id, sizeof(node.node_id)) == sizeof(node.node_id)); close(a_to_b[1]);
@@ -100,14 +101,14 @@ int main(void)
     call.transaction.object_count = 1;
     put_object(call.transaction.data, MINI_BINDER_OBJECT_LOCAL, cookie);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &result) == 0);
+    assert(read_reply(fd, &result) == 0);
     assert(result.transaction.object_count == 1 && get32(mapping + result.transaction.reply_offset) == MINI_BINDER_OBJECT_LOCAL);
     assert(get64(mapping + result.transaction.reply_offset + 4) == cookie);
     returned = (const struct service_object *)(uintptr_t)get64(mapping + result.transaction.reply_offset + 4);
     assert(returned->invoke(21) == 42);
     free_reply(fd);
 
-    assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
+    assert(read_request(fd, &req) == 0);
     payload = (const unsigned char *)(uintptr_t)req.transaction.data_address;
     assert(req.transaction.object_count == 1 && get32(payload) == MINI_BINDER_OBJECT_LOCAL);
     assert(get64(payload + 4) == cookie);

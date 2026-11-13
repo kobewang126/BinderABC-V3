@@ -5,7 +5,7 @@
 #include <linux/ioctl.h>
 #include <linux/types.h>
 
-#define MINI_BINDER_PROTOCOL_VERSION 504U
+#define MINI_BINDER_PROTOCOL_VERSION 406U
 #define MINI_BINDER_MAX_DATA 256U
 #define MINI_BINDER_MAX_OBJECTS 8U
 #define MINI_BINDER_OBJECT_LOCAL 1U
@@ -14,16 +14,15 @@
 #define MINI_BINDER_GET_VERSION _IOR(MINI_BINDER_IOC_MAGIC, 0, __u32)
 #define MINI_BINDER_REGISTER_MANAGER _IO(MINI_BINDER_IOC_MAGIC, 22)
 #define MINI_BINDER_GET_THREAD_ID _IOR(MINI_BINDER_IOC_MAGIC, 23, __u32)
-#define MINI_BINDER_THREAD_EXIT _IO(MINI_BINDER_IOC_MAGIC, 24)
 
 struct mini_binder_transaction_data {
+    __u64 id;
     __u64 data_address;
     __u64 target_node;
     __u64 object_cookie;
     __u32 target_handle;
     __u32 object_count;
     __u32 object_offsets[MINI_BINDER_MAX_OBJECTS];
-    __u32 reply_offset;
     __u32 size;
     __s32 status;
     __u32 code;
@@ -39,13 +38,10 @@ enum mini_binder_command_code {
     MINI_BC_TRANSACTION = 1,
     MINI_BC_REPLY = 2,
     MINI_BC_FREE_REPLY = 3,
+    MINI_READ_REQUEST = 201,
+    MINI_READ_REPLY = 202,
     MINI_BR_TRANSACTION = 101,
     MINI_BR_REPLY = 102,
-};
-
-enum mini_binder_read_kind {
-    MINI_READ_REQUEST = 1,
-    MINI_READ_REPLY = 2,
 };
 
 struct mini_binder_command {

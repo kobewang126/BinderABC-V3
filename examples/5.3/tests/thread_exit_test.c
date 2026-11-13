@@ -12,6 +12,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 
 static int demo;
 
@@ -27,12 +28,12 @@ static void server(int ready, int stop)
     unsigned char byte;
     void *mapping;
     struct mini_binder_command req = {0}, reply = {.cmd = MINI_BC_REPLY};
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     mapping = map(fd);
     assert(write(ready, "R", 1) == 1); close(ready);
     for (int i = 0; i < (demo ? 2 : 3); i++) {
-        assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
+        assert(read_request(fd, &req) == 0);
 
         reply.transaction.size = 1; reply.transaction.data[0] = (unsigned char)((demo ? 21 : 11) + i * 10);
         assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
@@ -56,8 +57,8 @@ static void *leave_reply(void *data)
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION}, reply = {0};
     call.transaction.size = 1; call.transaction.data[0] = 20;
     assert(ioctl(arg->fd, MINI_BINDER_WRITE, &call) == 0);
-    assert(ioctl(arg->fd, MINI_BINDER_READ, &reply) == 0);
-    assert(reply.transaction.size == 1 && reply.transaction.reply_offset < 2 * MINI_BINDER_MAX_DATA);
+    assert(read_reply(arg->fd, &reply) == 0);
+    assert(reply.transaction.size == 1 && reply.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA && reply.transaction.reply_offset < 4 * MINI_BINDER_MAX_DATA);
     arg->offset = reply.transaction.reply_offset;
     assert(arg->mapping[arg->offset] == 21);
     assert(ioctl(arg->fd, MINI_BINDER_THREAD_EXIT) == 0);
@@ -104,7 +105,7 @@ int main(int argc, char **argv)
     assert(pthread_join(thread, NULL) == 0);
     call.transaction.size = 1; call.transaction.data[0] = 30;
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &reply) == 0);
+    assert(read_reply(fd, &reply) == 0);
     assert(reply.transaction.reply_offset == arg.offset && mapping[arg.offset] == 31);
     assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
     assert(ioctl(fd, MINI_BINDER_THREAD_EXIT) == 0);

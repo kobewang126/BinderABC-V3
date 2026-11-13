@@ -45,7 +45,7 @@ export const v3Specs = [
     u('tests/return_to_owner_test.c','put32(reply.transaction.data, (uint32_t)returned->invoke(21))','拥有者 A'), u('tests/return_to_owner_test.c','get32(mapping) == 42','进程 B')]),
   s('docs/05-threading/5.1-thread-replies.md', 'sequence', [
     u('tests/thread_reply_test.c','ioctl(worker->fd, MINI_BINDER_WRITE, &call)','客户端线程 A'), u('tests/thread_reply_test.c','ioctl(worker->fd, MINI_BINDER_WRITE, &call)','客户端线程 B'),
-    u('tests/thread_reply_test.c','ioctl(fd, MINI_BINDER_READ, &received[i])','服务端线程'), u('tests/thread_reply_test.c','for (int i = 1; i >= 0; i--)','服务端线程'),
+    u('tests/thread_reply_test.c','read_request(fd, &received[i])','服务端线程'), u('tests/thread_reply_test.c','for (int i = 1; i >= 0; i--)','服务端线程'),
     u('tests/thread_reply_test.c','ioctl(fd, MINI_BINDER_WRITE, &reply)','服务端线程'), k('transaction.reply_offset =','客户端线程 B'), k('transaction.reply_offset =','客户端线程 A'),
     u('tests/thread_reply_test.c','ioctl(worker->fd, MINI_BINDER_WRITE, &release)','客户端线程 A'), u('tests/thread_reply_test.c','ioctl(worker->fd, MINI_BINDER_WRITE, &release)','客户端线程 B')]),
   s('docs/05-threading/5.2-thread-todo.md', 'sequence', [
@@ -53,20 +53,24 @@ export const v3Specs = [
     u('tests/thread_reply_test.c','receive(group->fd, &event)','服务线程'),
     k('thread->current_transaction = slot','服务线程'),
     u('tests/thread_reply_test.c','exchange_command(group->fd, &reply, NULL) == 0','服务线程'),
-    u('tests/thread_reply_test.c','ioctl(worker->fd, MINI_BINDER_READ, &reply)','调用线程')]),
-  s('docs/05-threading/5.3-thread-exit.md', 'concept', [
-    cu('tests/service_exit_test.c','ioctl(s->fd, MINI_BINDER_THREAD_EXIT) == 0'),
-    c('if (thread->current_transaction)'), c('WRITE_ONCE(slot->state, RPC_FAILED)'),
-    c('WRITE_ONCE(slot->state, RPC_IDLE)'), c('if (thread->reply_ready)'),
-    c('thread->current_transaction = NULL'), c('thread->pid = NULL'),
-    cu('tests/service_exit_test.c','assert(ret == -EPIPE)')]),
-  s('docs/05-threading/5.4-client-objects.md', 'sequence', [
+    u('tests/thread_reply_test.c','read_reply(worker->fd, &reply)','调用线程')]),
+  s('docs/05-threading/5.3-service-threads.md', 'sequence', [
+    u('tests/service_threads_demo.c','read_request(worker->fd, &event)','服务线程 A'),
+    u('tests/service_threads_demo.c','read_request(worker->fd, &event)','服务线程 B'),
+    u('tests/service_threads_demo.c','ioctl(caller->fd, MINI_BINDER_WRITE, &request)','调用线程'),
+    k('thread->current_transaction = slot','服务线程 A'),
+    k('thread->current_transaction = slot','服务线程 B'),
+    u('tests/service_threads_demo.c','worker->result[round] = worker->input[round] + 1','服务线程 A'),
+    u('tests/service_threads_demo.c','worker->result[round] = worker->input[round] + 1','服务线程 B'),
+    u('tests/service_threads_demo.c','ioctl(worker->fd, MINI_BINDER_WRITE, &reply)','服务线程 A'),
+    u('tests/service_threads_demo.c','ioctl(worker->fd, MINI_BINDER_WRITE, &reply)','服务线程 B')]),
+  s('docs/04-concurrency/4.6-client-objects.md', 'sequence', [
     u('tests/role_test.c','ioctl(fd, MINI_BINDER_CREATE_NODE, &node)','进程 A', 1), u('tests/role_test.c','ioctl(fd, MINI_BINDER_CREATE_NODE, &node)','进程 B'),
     u('tests/role_test.c','write_object(&call.transaction, OBJECT_PARCEL_LOCAL','进程 A'), k('ret = translate_objects(file, server_ctx','进程 A 线程'),
-    u('tests/role_test.c','ioctl(fd, MINI_BINDER_WRITE, &reply)','进程 B'), k('thread->pending_reply = transaction','进程 A 线程'),
+    u('tests/role_test.c','ioctl(fd, MINI_BINDER_WRITE, &reply)','进程 B'), k('client_ctx->pending_reply = transaction','进程 A 线程'),
     u('tests/role_test.c','call.transaction.target_handle = (uint32_t)received.value','进程 B'), k('transaction.object_cookie = nodes[i].cookie','进程 B 线程'),
     u('tests/role_test.c','local.invoke((int)get32(payload))','进程 A'), u('tests/role_test.c','ioctl(fd, MINI_BINDER_WRITE, &reply)','进程 A', 1),
-    u('tests/role_test.c','get32(mapping + result.transaction.reply_offset) == 14','进程 B')]),
+    u('tests/role_test.c','get32(mapping + (2 * MINI_BINDER_MAX_DATA)) == 14','进程 B')]),
   s('docs/06-file-descriptors/6.1-file-descriptors.md', 'concept', [cu('fd_demo.c','fd = mkstemp(path)'),cu('fd_demo.c','fd = mkstemp(path)'),cu('fd_demo.c','child = fork()'),cu('fd_demo.c','duplicate = dup(fd)'),cu('fd_demo.c','independent = open(path'),cu('fd_demo.c','independent = open(path'),cu('fd_demo.c','unlink(path)')]),
   s('docs/06-file-descriptors/6.2-fd-request.md', 'sequence', [
     u('tests/mixed_object_test.c','sender.call.transaction.object_count = 2','发送进程 A'), k('type == MINI_BINDER_OBJECT_LOCAL','发送线程'),

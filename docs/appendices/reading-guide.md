@@ -4,7 +4,7 @@
 
 先阅读章首问题，预测结果，再按正文从本章目录构建并运行。下表只列主要观察点；完整命令、源码文件与行号、实际输出及验证边界以各章正文为准。压缩包读者不需要 Git。切换驱动章节前应停止原程序并卸载同名模块。
 
-按章号阅读，先准备环境，再进行内核模块实验。第四篇的 4.5 是对象转换的补全，第五篇的 5.4 是角色对称性的检查，不应当作新的线程调度机制。
+按章号阅读，先准备环境，再进行内核模块实验。第四篇的 4.5 是对象转换的补全，4.6 是角色对称性的检查，不应当作新的线程调度机制。
 
 ## 第 0 篇
 
@@ -56,6 +56,7 @@
 | [4.3](../04-concurrency/4.3-binder-thread.md) | 同一上下文怎样识别不同调用线程？ | thread_test --demo | dup 共享上下文；不同线程拥有不同记录 |
 | [4.4](../04-concurrency/4.4-proc-todo.md) | 服务线程怎样领取进程待办？ | workers_test | 先看到两个请求排队，再由两个线程各领取一笔 |
 | [4.5](../04-concurrency/4.5-ref-back-to-owner.md) | 引用传回拥有者时还需要 Ref 吗？ | return_to_owner_test | 请求和回复都恢复 LOCAL 与原 cookie，拥有者调用本地函数 |
+| [4.6](../04-concurrency/4.6-client-objects.md) | 客户端能否也成为对象拥有者？ | role_test | 两个进程都不 REGISTER_SERVER，仍能按先后双向调用 |
 
 ## 第 5 篇
 
@@ -63,8 +64,7 @@
 | --- | --- | --- | --- |
 | [5.1](../05-threading/5.1-thread-replies.md) | 共享文件的两个线程怎样分别接收回复？ | thread_reply_test --demo | 倒序回复仍匹配原线程，映射位置互不覆盖 |
 | [5.2](../05-threading/5.2-thread-todo.md) | 服务线程不填 id，怎样找到该回复的调用线程？ | thread_reply_test --demo | 两个服务线程各自绑定请求，乱序回复正确；跨线程代回被拒绝 |
-| [5.3](../05-threading/5.3-thread-exit.md) | 服务线程退出，尚未回复的事务怎么办？ | service_exit_test --demo | fd 仍存活时调用者收到 EPIPE，新线程和事务槽可以复用 |
-| [5.4](../05-threading/5.4-client-objects.md) | 客户端能否也成为对象拥有者？ | role_test | 两个进程都不 REGISTER_SERVER，仍能按先后双向调用 |
+| [5.3](../05-threading/5.3-service-threads.md) | 两个服务线程如何共用 fd 等待并处理任务？ | service_threads_demo | 两线程先在 READ 中睡眠，再完成两轮四笔调用 |
 
 ## 第 6 篇
 

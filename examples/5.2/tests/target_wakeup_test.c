@@ -16,6 +16,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 
 struct client {
     int fd, notify;
@@ -34,7 +35,7 @@ static void *call_server(void *arg)
     assert(ioctl(c->fd, MINI_BINDER_GET_THREAD_ID, &c->binder_thread) == 0);
     atomic_store(&c->tid, syscall(SYS_gettid));
     assert(ioctl(c->fd, MINI_BINDER_WRITE, &call) == 0);
-    assert(ioctl(c->fd, MINI_BINDER_READ, &reply) == 0);
+    assert(read_reply(c->fd, &reply) == 0);
     assert(reply.transaction.size == 1 && c->mapping[reply.transaction.reply_offset] == c->value + 1);
     assert(ioctl(c->fd, MINI_BINDER_WRITE, &release) == 0);
     assert(write(c->notify, &c->value, 1) == 1);
@@ -80,7 +81,7 @@ static void *respond(void *data)
     struct responder *r = data;
     struct mini_binder_command reply = {.cmd = MINI_BC_REPLY};
     unsigned char byte;
-    assert(ioctl(r->fd, MINI_BINDER_READ, &r->request) == 0);
+    assert(read_request(r->fd, &r->request) == 0);
     int ret = pthread_barrier_wait(r->ready);
     assert(ret == 0 || ret == PTHREAD_BARRIER_SERIAL_THREAD);
     assert(read(r->go[0], &byte, 1) == 1);
@@ -103,7 +104,7 @@ int main(void)
     struct responder service[2];
     struct client clients[2];
     struct mini_binder_command received[2] = {0};
-    assert(server >= 0 && ioctl(server, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(server >= 0);
     assert(ioctl(server, MINI_BINDER_REGISTER_MANAGER) == 0);
     server_mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, server, 0);
     assert(server_mapping != MAP_FAILED && pipe(notify) == 0);

@@ -14,5 +14,6 @@
 .reader-outline .outline-link.sub{padding-left:16px}
 .reader-outline summary:focus-visible{outline:2px solid #178b78;outline-offset:2px}
 .prose h2,.prose h3{scroll-margin-top:60px}
-.chapter-link{padding:6px 10px;line-height:1.35}
+.chapter-link{padding:4px 10px;font-size:12px;line-height:1.25}
+.chapter-index{font-size:inherit;line-height:inherit;padding-top:0}
 .group-label{padding:10px 12px 6px}

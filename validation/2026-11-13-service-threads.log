@@ -1,0 +1,60 @@
+CHAPTER 4.6
+mini-binder protocol version: 0406
+ordinary client passed a local object and handled its call: twice(7) = 14
+one read-only mapping, address-space check and remapping passed
+CHAPTER 5.1
+mini-binder protocol version: 0501
+ordinary client passed a local object and handled its call: twice(7) = 14
+one read-only mapping, address-space check and remapping passed
+thread input 10: reply 11 at offset 512
+thread input 20: reply 21 at offset 768
+reverse replies and thread isolation passed
+CHAPTER 5.2
+mini-binder protocol version: 0502
+ordinary client passed a local object and handled its call: twice(7) = 14
+one read-only mapping, address-space check and remapping passed
+thread 1: 10 -> 11, offset 512
+thread 2: 20 -> 21, offset 768
+reverse replies and thread isolation passed
+CHAPTER 5.3
+mini-binder protocol version: 0503
+ordinary client passed a local object and handled its call: twice(7) = 14
+one read-only mapping, address-space check and remapping passed
+DEMO_ROUND 1
+one service fd and mapping; two service threads sleeping in READ
+round 1, worker 1: 10 -> 11
+round 1, worker 2: 20 -> 21
+round 2, worker 1: 11 -> 12
+round 2, worker 2: 21 -> 22
+two service threads completed four calls; callers received their own replies
+DEMO_ROUND 2
+one service fd and mapping; two service threads sleeping in READ
+round 1, worker 1: 20 -> 21
+round 1, worker 2: 10 -> 11
+round 2, worker 1: 11 -> 12
+round 2, worker 2: 21 -> 22
+two service threads completed four calls; callers received their own replies
+DEMO_ROUND 3
+one service fd and mapping; two service threads sleeping in READ
+round 1, worker 1: 10 -> 11
+round 1, worker 2: 20 -> 21
+round 2, worker 1: 21 -> 22
+round 2, worker 2: 11 -> 12
+two service threads completed four calls; callers received their own replies
+DEMO_ROUND 4
+one service fd and mapping; two service threads sleeping in READ
+round 1, worker 1: 10 -> 11
+round 1, worker 2: 20 -> 21
+round 2, worker 1: 21 -> 22
+round 2, worker 2: 11 -> 12
+two service threads completed four calls; callers received their own replies
+DEMO_ROUND 5
+one service fd and mapping; two service threads sleeping in READ
+round 1, worker 1: 10 -> 11
+round 1, worker 2: 20 -> 21
+round 2, worker 1: 21 -> 22
+round 2, worker 2: 11 -> 12
+two service threads completed four calls; callers received their own replies
+service thread exit: waiting caller received EPIPE
+cancelled transaction and repeated thread records reclaimed
+next service thread: reply = 42; slots reused

@@ -10,6 +10,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 
 struct worker { int fd; uint32_t id; };
 static void *serve(void *data)
@@ -18,7 +19,7 @@ static void *serve(void *data)
     struct mini_binder_command req = {0}, reply = {.cmd = MINI_BC_REPLY};
     const unsigned char *payload;
     assert(ioctl(worker->fd, MINI_BINDER_GET_THREAD_ID, &worker->id) == 0);
-    assert(ioctl(worker->fd, MINI_BINDER_READ, &req) == 0);
+    assert(read_request(worker->fd, &req) == 0);
     payload = (const unsigned char *)(uintptr_t)req.transaction.data_address;
     assert(req.transaction.size == 1);
     reply.transaction.id = req.transaction.id;
@@ -39,7 +40,7 @@ static void client(int start, unsigned char number)
     assert(mapping != MAP_FAILED && read(start, &token, 1) == 1);
     req.transaction.size = 1; req.transaction.data[0] = number;
     assert(ioctl(fd, MINI_BINDER_WRITE, &req) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &reply) == 0 && mapping[0] == number + 1);
+    assert(read_reply(fd, &reply) == 0 && mapping[2 * MINI_BINDER_MAX_DATA] == number + 1);
     assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
     munmap(mapping, (size_t)page); close(fd); _exit(0);
 }
@@ -51,7 +52,7 @@ int main(void)
     pid_t clients[2];
     pthread_t threads[2];
     struct worker workers[2];
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED && pipe(start) == 0);

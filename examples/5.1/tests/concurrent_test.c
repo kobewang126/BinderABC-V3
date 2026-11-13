@@ -28,7 +28,7 @@ static void client(unsigned char value)
     request.transaction.data[1] = 1;
     if (exchange_command(fd, &request, &response) || response.cmd != MINI_BR_REPLY ||
         response.transaction.status || response.transaction.size != 1 ||
-        mapping[0] != (unsigned char)(value == 11 ? value - 1 : value + 1) ||
+        mapping[2 * MINI_BINDER_MAX_DATA] != (unsigned char)(value == 11 ? value - 1 : value + 1) ||
         exchange_command(fd, &release, NULL))
         _exit(1);
     munmap(mapping, (size_t)page);
@@ -54,7 +54,7 @@ int main(void)
     unsigned char values[2];
     unsigned int i;
 
-    if (fd < 0 || page <= 0 || ioctl(fd, MINI_BINDER_REGISTER_SERVER) ||
+    if (fd < 0 || page <= 0 ||
         ioctl(fd, MINI_BINDER_REGISTER_MANAGER)) goto out;
     mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     if (mapping == MAP_FAILED) goto out;

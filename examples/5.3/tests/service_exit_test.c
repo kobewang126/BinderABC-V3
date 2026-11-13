@@ -30,7 +30,7 @@ static void *serve_once(void *data)
 #if MINI_BINDER_PROTOCOL_VERSION >= 703
     struct mini_binder_command enter = {.cmd = MINI_BC_ENTER_LOOPER};
     assert(exchange_command(s->fd, &enter, NULL) == 0);
-#elif MINI_BINDER_PROTOCOL_VERSION >= 504
+#elif MINI_BINDER_PROTOCOL_VERSION >= 406
     event.cmd = MINI_READ_REQUEST;
 #endif
     assert(exchange_command(s->fd, NULL, &event) == 0 && event.cmd == MINI_BR_TRANSACTION);
@@ -52,7 +52,7 @@ static void client(int cancel, int success)
     unsigned char *mapping = map(fd);
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION}, reply = {0};
     call.transaction.size = 1; call.transaction.data[0] = 40;
-#if MINI_BINDER_PROTOCOL_VERSION >= 504 && MINI_BINDER_PROTOCOL_VERSION < 703
+#if MINI_BINDER_PROTOCOL_VERSION >= 406 && MINI_BINDER_PROTOCOL_VERSION < 703
     reply.cmd = MINI_READ_REPLY;
 #endif
     int ret = exchange_command(fd, &call, &reply);
@@ -73,9 +73,6 @@ int main(int argc, char **argv)
     int demo = argc == 2 && strcmp(argv[1], "--demo") == 0;
     assert(argc == 1 || demo);
     int fd = open("/dev/mini_binder", O_RDWR); assert(fd >= 0);
-#ifdef MINI_BINDER_REGISTER_SERVER
-    assert(ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
-#endif
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     void *mapping = map(fd);
     for (int i = 0; i < (demo ? 2 : 12); i++) {

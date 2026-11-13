@@ -60,25 +60,25 @@
 
 ### 4 第四篇：进程、服务发现与线程
 
-本篇有三条相连的线：4.1 整理对象所属的上下文，4.2 解决首次服务发现，4.3～4.4 建立线程领取请求的模型。4.5 则补全第三篇的对象转换：引用回到拥有者时恢复为本地对象；它不是线程调度的新阶段。
+本篇依次整理上下文、服务发现和请求领取；4.5 补全引用返回拥有者的对象转换，4.6 撤掉固定角色，让同一上下文既能调用也能提供对象。
 
 - [第 4.1 章 一个 Binder 上下文有哪些对象？](docs/04-concurrency/4.1-binder-proc.md)
 - [第 4.2 章 从哪里找到服务？](docs/04-concurrency/4.2-service-manager.md)
 - [第 4.3 章 一个 Binder 上下文中的多个线程](docs/04-concurrency/4.3-binder-thread.md)
 - [第 4.4 章 让服务线程领取待办事务](docs/04-concurrency/4.4-proc-todo.md)
 - [第 4.5 章 把引用传回对象拥有者](docs/04-concurrency/4.5-ref-back-to-owner.md)
+- [第 4.6 章 客户端也可以提供 Binder 对象](docs/04-concurrency/4.6-client-objects.md)
 - [第四篇自测](docs/appendices/4-review.md)
 
 第三、四篇先运行各章正文中的主实验；额外测试源码保留在对应 `examples/<章号>/tests/` 中。
 
 ### 5 第五篇：线程与同步调用
 
-5.1 讲调用线程的回复隔离，暂时保留事务 id；5.2 把服务线程与待回复事务绑定，删除公开事务 id；5.3 处理服务线程显式退出时的待回复事务清理。后续沿用线程绑定规则。5.4 再撤掉固定的客户端/服务端角色，检验同一上下文是否能够双向提供对象。不引入等待中的嵌套调用。
+5.1 讲调用线程的回复隔离，暂时保留事务 id；5.2 把服务线程与待回复事务绑定，删除公开事务 id；5.3 用两个服务线程共用 fd 的正常实验串起等待、领取和回复。各章沿用 4.6 的双向上下文，不引入等待中的嵌套调用。
 
 - [第 5.1 章 同一个 Binder 上下文中的两个调用线程](docs/05-threading/5.1-thread-replies.md)
 - [第 5.2 章 服务线程怎样找到该回复的调用线程？](docs/05-threading/5.2-thread-todo.md)
-- [第 5.3 章 服务线程退出后，谁结束待回复事务？](docs/05-threading/5.3-thread-exit.md)
-- [第 5.4 章 客户端也可以提供 Binder 对象](docs/05-threading/5.4-client-objects.md)
+- [第 5.3 章 两个服务线程怎样共同处理请求？](docs/05-threading/5.3-service-threads.md)
 - [第五篇自测](docs/appendices/5-review.md)
 
 ### 6 第六篇：Binder 中的文件描述符

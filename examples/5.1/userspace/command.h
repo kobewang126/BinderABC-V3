@@ -14,6 +14,7 @@ static inline int exchange_command(int fd, struct mini_binder_command *write_cmd
             return -errno;
     }
     if (read_cmd) {
+        read_cmd->cmd = write_cmd ? MINI_READ_REPLY : MINI_READ_REQUEST;
         if (ioctl(fd, MINI_BINDER_READ, read_cmd) < 0) {
             int error = -errno;
             if (write_cmd && write_cmd->cmd == MINI_BC_TRANSACTION) {

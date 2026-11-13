@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 
 static uint32_t get32(const unsigned char *p)
 { return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
@@ -32,12 +33,12 @@ static void receiver(int ready_fd)
     struct mini_binder_command request = {0}, reply = {.cmd = MINI_BC_REPLY};
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION}, result = {0};
     const unsigned char *data, *mapping;
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     mapping = map(fd);
     assert(ioctl(fd, MINI_BINDER_CREATE_NODE, &node) == 0);
     assert(write(ready_fd, &node.node_id, sizeof(node.node_id)) == sizeof(node.node_id));
     close(ready_fd);
-    assert(ioctl(fd, MINI_BINDER_READ, &request) == 0);
+    assert(read_request(fd, &request) == 0);
     data = (const unsigned char *)(uintptr_t)request.transaction.data_address;
     assert(request.transaction.object_count == 1 && get32(data) == MINI_BINDER_OBJECT_HANDLE);
     call.transaction.target_handle = get32(data + 4);
@@ -45,7 +46,7 @@ static void receiver(int ready_fd)
 
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &result) == 0);
+    assert(read_reply(fd, &result) == 0);
     assert(result.transaction.size == 4 && get32(mapping + result.transaction.reply_offset) == 77);
     free_reply(fd);
     munmap((void *)mapping, (size_t)sysconf(_SC_PAGESIZE));
@@ -68,7 +69,7 @@ int main(void)
     assert(read(pipefd[0], &receiver_node, sizeof(receiver_node)) == sizeof(receiver_node));
     close(pipefd[0]);
     fd = open("/dev/mini_binder", O_RDWR);
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     mapping = map(fd);
     assert(ioctl(fd, MINI_BINDER_CREATE_NODE, &node) == 0);
     send.transaction.target_node = receiver_node;
@@ -77,9 +78,9 @@ int main(void)
     put32(send.transaction.data, MINI_BINDER_OBJECT_LOCAL);
     put32(send.transaction.data + 4, 11);
     assert(ioctl(fd, MINI_BINDER_WRITE, &send) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &result) == 0);
+    assert(read_reply(fd, &result) == 0);
     free_reply(fd);
-    assert(ioctl(fd, MINI_BINDER_READ, &request) == 0);
+    assert(read_request(fd, &request) == 0);
     assert(request.transaction.target_node == node.node_id && request.transaction.object_cookie == 11);
 
     reply.transaction.size = 4;

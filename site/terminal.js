@@ -158,10 +158,10 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     '4.3': { thread_test: 'proc A: main thread 1, workers 2 and 3\ndup A: thread 1; proc B: thread 1\none proc, distinct thread records; dup shares proc passed' },
     '4.4': { workers_test: 'two client requests queued before workers started\nthread 1 handled request 1: 10 -> 11\nthread 2 handled request 2: 11 -> 12\ntwo server threads receive separate queued requests' },
     '4.5': { return_to_owner_test: 'reply Ref -> owner local object: 42\nrequest Ref -> owner local object: 42' },
-    '5.1': { thread_reply_test: 'thread input 10: reply 11 at offset 0\nthread input 20: reply 21 at offset 256\nreverse replies, thread isolation, full slots and reuse passed' },
-    '5.2': { thread_reply_test: 'thread 1: 10 -> 11, offset 0\nthread 2: 20 -> 21, offset 256\nreverse replies, thread isolation, full slots and reuse passed', target_wakeup_test: 'reply -> binder thread=2: target wake events 1; other wake events 0\nreply -> binder thread=1\nboth threads received their own replies' },
-    '5.3': { thread_exit_test: '12 exited threads reused record; reply offset 0 reused\nexplicit thread exit and reply cleanup passed' },
-    '5.4': { role_test: 'ordinary client passed a local object and handled its call: twice(7) = 14' },
+    '5.1': { thread_reply_test: 'thread input 10: reply 11 at offset 512\nthread input 20: reply 21 at offset 768\nreverse replies, thread isolation, full slots and reuse passed' },
+    '5.2': { thread_reply_test: 'thread 1: 10 -> 11, offset 512\nthread 2: 20 -> 21, offset 768\nreverse replies, thread isolation, full slots and reuse passed', target_wakeup_test: 'reply -> binder thread=2: target wake events 1; other wake events 0\nreply -> binder thread=1\nboth threads received their own replies' },
+    '5.3': { thread_exit_test: '12 exited threads reused record; reply offset 512 reused\nexplicit thread exit and reply cleanup passed' },
+    '4.6': { role_test: 'ordinary client passed a local object and handled its call: twice(7) = 14' },
     '6.1': { fd_demo: 'fd 3 and dup 5 share an open file\nchild via dup: ab; parent via fd: cd\nindependent open: ab' },
     '6.2': { fd_request_demo: 'receiver fd 4 read: data\nrequest fd delivered', mixed_object_test: 'sender fd 3 -> receiver fd 4; binder handle 1\nreceiver read after sender closed: data' },
     "6.3": { fd_failure_test: "receiver: one free fd=63, request contains two fd objects\nreceiver: READ returned EMFILE; second reservation failed\nreceiver: open reused fd=63; first reservation rolled back\nsender: WRITE returned EPIPE; delivery failed\nsender: both pipes reached EOF; driver holds no write-end references\ninvalid fd, queued cancellation and receiver death released file references\nfd-table exhaustion and copy failure rolled back reserved descriptors" },
@@ -172,7 +172,7 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     '4.3': { thread_test: 'proc A: main thread 1, workers 3 and 2\ndup A: thread 1; proc B: thread 1\none proc, distinct thread records; dup shares proc passed' },
     '5.1': { thread_reply_test: chapterTests['5.1'].thread_reply_test.replace('reverse replies, thread isolation, full slots and reuse passed', 'reverse replies and thread isolation passed') },
     '5.2': { thread_reply_test: chapterTests['5.2'].thread_reply_test.replace('reverse replies, thread isolation, full slots and reuse passed', 'reverse replies and thread isolation passed') },
-    '5.3': { thread_exit_test: 'exited thread released reply offset 0; next caller reused it\nexplicit thread exit and reply cleanup passed' }
+    '5.3': { thread_exit_test: 'exited thread released reply offset 512; next caller reused it\nexplicit thread exit and reply cleanup passed' }
   };
   for (const ch of ['7.1', '7.2', '7.3']) chapterTests[ch] = {
     object_demo: 'GET_OBJECT 1: LOCAL(cookie=77) -> client handle 1\nGET_OBJECT 2: LOCAL(cookie=77) -> client handle 1\nhandle 1: sub(7, 3) = 4\nsame local object reused; handle call passed',
@@ -192,17 +192,14 @@ export function initTerminal({ files, icon, paintIcons, onBuildChange }) {
     parcel_binding_test: 'name + LOCAL Parcel matches existing wire format; sequential decoding passed\nHANDLE/FD codec, malformed offsets, truncated objects and failed-write rollback passed'
   };
   Object.assign(chapterTests['5.2'] ||= {}, {
-    thread_reply_test: "thread 1: 10 -> 11, offset 0\nthread 2: 20 -> 21, offset 256\nreverse replies, thread isolation, full slots and reuse passed",
+    thread_reply_test: "thread 1: 10 -> 11, offset 512\nthread 2: 20 -> 21, offset 768\nreverse replies, thread isolation, full slots and reuse passed",
   });
   Object.assign(chapterTests['5.3'] ||= {}, {
-    thread_reply_test: "thread 2: 10 -> 11, offset 256\nthread 1: 20 -> 21, offset 0\nreverse replies, thread isolation, full slots and reuse passed",
-    service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
-  });
-  demoOutputs['5.3'].service_exit_test = "service thread exit: waiting caller received EPIPE\nnext service thread: reply = 42; slots reused";
-  Object.assign(chapterTests['5.4'] ||= {}, {
     thread_reply_test: "thread 2: 10 -> 11, offset 768\nthread 1: 20 -> 21, offset 512\nreverse replies, thread isolation, full slots and reuse passed",
     service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",
   });
+  chapterTests['5.3'].service_threads_demo = "one service fd and mapping; two service threads sleeping in READ\nround 1, worker 1: 10 -> 11\nround 1, worker 2: 20 -> 21\nround 2, worker 1: 11 -> 12\nround 2, worker 2: 21 -> 22\ntwo service threads completed four calls; callers received their own replies";
+  demoOutputs['5.3'].service_exit_test = "service thread exit: waiting caller received EPIPE\nnext service thread: reply = 42; slots reused";
   Object.assign(chapterTests['6.2'] ||= {}, {
     thread_reply_test: "thread 1: 10 -> 11, offset 512\nthread 2: 20 -> 21, offset 768\nreverse replies, thread isolation, full slots and reuse passed",
     service_exit_test: "service thread exit: waiting caller received EPIPE\ncancelled transaction and repeated thread records reclaimed\nnext service thread: reply = 42; slots reused",

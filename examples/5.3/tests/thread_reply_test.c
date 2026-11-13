@@ -12,6 +12,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 #include "../userspace/command.h"
 
 struct worker {
@@ -42,9 +43,9 @@ static void *client_thread(void *arg)
     barrier(worker->phase);
     barrier(worker->phase);
     if (worker->input == 10)
-        assert(ioctl(worker->fd, MINI_BINDER_READ, (void *)0) == -1 && errno == EFAULT);
-    assert(ioctl(worker->fd, MINI_BINDER_READ, &reply) == 0 && reply.cmd == MINI_BR_REPLY);
-    assert(reply.transaction.size == 1 && reply.transaction.reply_offset < 2 * MINI_BINDER_MAX_DATA);
+        assert(read_reply(worker->fd, (void *)0) == -1 && errno == EFAULT);
+    assert(read_reply(worker->fd, &reply) == 0 && reply.cmd == MINI_BR_REPLY);
+    assert(reply.transaction.size == 1 && reply.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA && reply.transaction.reply_offset < 4 * MINI_BINDER_MAX_DATA);
     worker->offset = reply.transaction.reply_offset;
     worker->result = worker->mapping[worker->offset];
     assert(worker->result == worker->input + 1);
@@ -65,7 +66,7 @@ struct service_group {
 static void receive(int fd, struct mini_binder_command *event)
 {
     memset(event, 0, sizeof(*event));
-#if MINI_BINDER_PROTOCOL_VERSION >= 504 && MINI_BINDER_PROTOCOL_VERSION < 703
+#if MINI_BINDER_PROTOCOL_VERSION >= 406 && MINI_BINDER_PROTOCOL_VERSION < 703
     event->cmd = MINI_READ_REQUEST;
 #endif
     assert(exchange_command(fd, NULL, event) == 0);
@@ -90,7 +91,7 @@ static void *service_worker(void *arg)
     unsigned char value = *(const unsigned char *)(uintptr_t)event.transaction.data_address;
     assert(value == 10 || value == 20);
     group->addresses[value == 20] = event.transaction.data_address;
-#if MINI_BINDER_PROTOCOL_VERSION >= 504 && MINI_BINDER_PROTOCOL_VERSION < 703
+#if MINI_BINDER_PROTOCOL_VERSION >= 406 && MINI_BINDER_PROTOCOL_VERSION < 703
     again.cmd = MINI_READ_REQUEST;
 #endif
     assert(exchange_command(group->fd, NULL, &again) == -EBUSY);
@@ -121,9 +122,6 @@ static void server(int ready, int stop)
                                  .changed = PTHREAD_COND_INITIALIZER};
     struct mini_binder_command event, reply = {.cmd = MINI_BC_REPLY};
     assert(fd >= 0);
-#ifdef MINI_BINDER_REGISTER_SERVER
-    assert(ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
-#endif
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     void *mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED && pthread_barrier_init(&group.phase, NULL, 3) == 0);
@@ -172,7 +170,7 @@ int main(void)
         assert(pthread_create(&threads[i], NULL, client_thread, &workers[i]) == 0);
     }
     barrier(&phase);
-    assert(ioctl(fd, MINI_BINDER_READ, &reply) == -1 && errno == ENOENT);
+    assert(read_reply(fd, &reply) == -1 && errno == ENOENT);
     assert(ioctl(fd, MINI_BINDER_WRITE, &release) == -1 && errno == ENOENT);
     third.transaction.size = 1; third.transaction.data[0] = 30;
     assert(ioctl(fd, MINI_BINDER_WRITE, &third) == -1 && errno == EBUSY);
@@ -189,7 +187,7 @@ int main(void)
     barrier(&phase);
     for (int i = 0; i < 2; i++) assert(pthread_join(threads[i], NULL) == 0);
     assert(ioctl(fd, MINI_BINDER_WRITE, &third) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &reply) == 0);
+    assert(read_reply(fd, &reply) == 0);
     assert(reply.transaction.size == 1 && mapping[reply.transaction.reply_offset] == 31);
     assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
     assert(write(stop[1], "S", 1) == 1); close(stop[1]);

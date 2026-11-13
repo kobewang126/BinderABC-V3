@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 
 struct worker { int fd; unsigned char *mapping; unsigned char input; };
 static void on_signal(int sig) { (void)sig; }
@@ -26,8 +27,8 @@ static void *client(void *arg)
         assert(ioctl(w->fd, MINI_BINDER_WRITE, &call) == -1 && errno == EINTR);
     } else {
         assert(ioctl(w->fd, MINI_BINDER_WRITE, &call) == 0);
-        assert(ioctl(w->fd, MINI_BINDER_READ, &reply) == 0);
-        assert(reply.transaction.reply_offset < 2 * MINI_BINDER_MAX_DATA);
+        assert(read_reply(w->fd, &reply) == 0);
+        assert(reply.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA && reply.transaction.reply_offset < 4 * MINI_BINDER_MAX_DATA);
         assert(w->mapping[reply.transaction.reply_offset] == 21);
         assert(ioctl(w->fd, MINI_BINDER_WRITE, &release) == 0);
     }
@@ -41,7 +42,7 @@ static void *respond(void *data)
     struct service *s = data;
     struct mini_binder_command req = {0}, reply = {.cmd = MINI_BC_REPLY};
     unsigned char byte;
-    assert(ioctl(s->fd, MINI_BINDER_READ, &req) == 0);
+    assert(read_request(s->fd, &req) == 0);
     unsigned char value = *(const unsigned char *)(uintptr_t)req.transaction.data_address;
     phase(&s->phase); phase(&s->phase);
     reply.transaction.size = 1; reply.transaction.data[0] = value + 1;
@@ -59,7 +60,7 @@ static void server(int notify, int control)
     pthread_t workers[2];
     struct service s = {.fd = fd, .control = control};
     struct mini_binder_command req = {0}, reply = {.cmd = MINI_BC_REPLY};
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     void *mapping = mmap(NULL, (size_t)page, PROT_READ, MAP_SHARED, fd, 0);
     assert(mapping != MAP_FAILED && pthread_barrier_init(&s.phase, NULL, 3) == 0);
@@ -70,7 +71,7 @@ static void server(int notify, int control)
     assert(read(control, &byte, 1) == 1);
     phase(&s.phase);
     for (int i = 0; i < 2; i++) assert(pthread_join(workers[i], NULL) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
+    assert(read_request(fd, &req) == 0);
     reply.transaction.size = 1; reply.transaction.data[0] = 31;
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
     assert(read(control, &byte, 1) == 1);
@@ -108,8 +109,8 @@ int main(void)
     assert(pthread_join(threads[1], NULL) == 0);
     call.transaction.size = 1; call.transaction.data[0] = 30;
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &reply) == 0);
-    assert(reply.transaction.reply_offset < 2 * MINI_BINDER_MAX_DATA && mapping[reply.transaction.reply_offset] == 31);
+    assert(read_reply(fd, &reply) == 0);
+    assert(reply.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA && reply.transaction.reply_offset < 4 * MINI_BINDER_MAX_DATA && mapping[reply.transaction.reply_offset] == 31);
     assert(ioctl(fd, MINI_BINDER_WRITE, &release) == 0);
     assert(write(control[1], "S", 1) == 1); close(control[1]);
     assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0);

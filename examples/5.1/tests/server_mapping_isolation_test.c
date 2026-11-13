@@ -10,6 +10,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <mini_binder.h>
+#include <test_io.h>
 
 static void *map(int fd)
 {
@@ -29,11 +30,11 @@ static void other_server(int ready, int stop)
     struct mini_binder_command req = {0}, reply = {.cmd = MINI_BC_REPLY};
     unsigned char byte;
     void *mapping;
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     mapping = map(fd);
     assert(ioctl(fd, MINI_BINDER_CREATE_NODE, &node) == 0);
     assert(write(ready, &node.node_id, sizeof(node.node_id)) == sizeof(node.node_id)); close(ready);
-    assert(ioctl(fd, MINI_BINDER_READ, &req) == 0);
+    assert(read_request(fd, &req) == 0);
     reply.transaction.id = req.transaction.id;
     reply.transaction.size = 1; reply.transaction.data[0] = 99;
     assert(ioctl(fd, MINI_BINDER_WRITE, &reply) == 0);
@@ -50,7 +51,7 @@ static void incoming_client(int inherited_fd)
     mapping = map(fd);
     call.transaction.size = 1; call.transaction.data[0] = 55;
     assert(ioctl(fd, MINI_BINDER_WRITE, &call) == 0);
-    assert(ioctl(fd, MINI_BINDER_READ, &reply) == 0);
+    assert(read_reply(fd, &reply) == 0);
     assert(mapping[reply.transaction.reply_offset] == 56);
     release_reply(fd);
     munmap(mapping, (size_t)sysconf(_SC_PAGESIZE)); close(fd); _exit(0);
@@ -62,7 +63,7 @@ static void *outgoing_client(void *arg)
     struct mini_binder_command call = {.cmd = MINI_BC_TRANSACTION}, reply = {0};
     call.transaction.target_node = caller->target;
     assert(ioctl(caller->fd, MINI_BINDER_WRITE, &call) == 0);
-    assert(ioctl(caller->fd, MINI_BINDER_READ, &reply) == 0);
+    assert(read_reply(caller->fd, &reply) == 0);
     assert(reply.transaction.reply_offset >= 2 * MINI_BINDER_MAX_DATA);
     assert(caller->mapping[reply.transaction.reply_offset] == 99);
     assert(*caller->request == 55);
@@ -84,12 +85,12 @@ int main(void)
     close(ready[1]); close(stop[0]);
     assert(read(ready[0], &target, sizeof(target)) == sizeof(target)); close(ready[0]);
     fd = open("/dev/mini_binder", O_RDWR);
-    assert(fd >= 0 && ioctl(fd, MINI_BINDER_REGISTER_SERVER) == 0);
+    assert(fd >= 0);
     assert(ioctl(fd, MINI_BINDER_REGISTER_MANAGER) == 0);
     mapping = map(fd);
     client = fork(); assert(client >= 0);
     if (!client) incoming_client(fd);
-    assert(ioctl(fd, MINI_BINDER_READ, &req) == 0 && req.transaction.size == 1);
+    assert(read_request(fd, &req) == 0 && req.transaction.size == 1);
     caller = (struct caller){.fd = fd, .target = target, .mapping = mapping,
         .request = (const unsigned char *)(uintptr_t)req.transaction.data_address};
     assert(*caller.request == 55);

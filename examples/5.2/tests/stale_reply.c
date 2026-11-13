@@ -45,7 +45,7 @@ static void client_run(int interrupted)
     if (interrupted)
         _exit(ret == -EINTR ? 0 : 1);
     if (ret || response.cmd != MINI_BR_REPLY || response.transaction.status ||
-        response.transaction.size != 1 || mapping[0] != 42 ||
+        response.transaction.size != 1 || mapping[2 * MINI_BINDER_MAX_DATA] != 42 ||
         exchange_command(fd, &release, NULL)) _exit(1);
     _exit(0);
 }
@@ -69,7 +69,7 @@ int main(void)
     pid_t first = -1, second = -1;
     int ok = 0;
 
-    if (page_size <= 0 || fd < 0 || ioctl(fd, MINI_BINDER_REGISTER_SERVER) ||
+    if (page_size <= 0 || fd < 0 ||
         ioctl(fd, MINI_BINDER_REGISTER_MANAGER))
         goto out;
     payload = mmap(NULL, (size_t)page_size, PROT_READ, MAP_SHARED, fd, 0);

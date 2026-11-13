@@ -22,3 +22,7 @@ sudo rmmod mini_binder
 ## 回复的线程归属
 
 沿用 5.2 规则：公开事务结构不含 id。服务线程领取后绑定 current_transaction，BC_REPLY 通过其 caller 找到原调用线程；回复前不能再领取，其他线程不能代回。
+
+## 与 4.6 的衔接
+
+继续沿用无需注册服务端的双向上下文。READ 由用户态选择 MINI_READ_REQUEST / MINI_READ_REPLY；测试中的 test_io.h 只设置读取意图后调用 ioctl。前两个 256 字节位置预留请求，回复位于偏移 512 和 768，使用本章的回复元数据定位。
