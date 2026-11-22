@@ -16,6 +16,12 @@
 
 部署时上传整个 `dist/BinderABC-V3/` 目录，保留源码 ZIP；相对链接同时适用于静态托管和离线阅读。
 
+## GitHub Pages
+
+仓库根目录的 `.github/workflows/pages.yml` 在 `main` 分支推送后自动检查源码引用、构建阅读器并部署 GitHub Pages，也可在 Actions 页面手动运行。仓库的 Settings → Pages → Source 应选择 GitHub Actions。
+
+仓库同时保存教程 Markdown、`examples/` 完整章节源码及网站构建代码。网站顶部的“下载源码 ZIP”提供适合直接下载实验的源码包；生成的网站和 ZIP 由工作流构建，无需提交 `site/dist/` 或 `node_modules/`。
+
 ## 发布到现有妙搭应用
 
 现有 BinderABC V3 应用 ID 为 `app_17hpxzfrv5m`。使用本机已登录的飞书 CLI 发布，无需浏览器自动化或修改 Chrome 权限。在本目录完成构建和验证后运行：
